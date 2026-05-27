@@ -179,7 +179,7 @@ export async function summarizePosts(posts, config, options = {}) {
 
     return {
       status: 'completed',
-      posts: nextPosts.filter((post) => post.llm_skip !== true)
+      posts: nextPosts
     };
   } catch (error) {
     for (const post of candidates) {
