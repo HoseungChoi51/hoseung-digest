@@ -8,6 +8,7 @@ const elements = {
   statusText: document.querySelector('#statusText'),
   pollButton: document.querySelector('#pollButton'),
   generateButton: document.querySelector('#generateButton'),
+  refreshSummariesButton: document.querySelector('#refreshSummariesButton'),
   digestList: document.querySelector('#digestList'),
   digestTitle: document.querySelector('#digestTitle'),
   digestMeta: document.querySelector('#digestMeta'),
@@ -169,11 +170,13 @@ async function loadDigest(date) {
   renderCurrentDigest();
 }
 
-async function generateToday() {
+async function generateToday(refreshSummaries = false) {
   elements.generateButton.disabled = true;
-  elements.generateButton.textContent = 'Generating...';
+  elements.refreshSummariesButton.disabled = true;
+  const button = refreshSummaries ? elements.refreshSummariesButton : elements.generateButton;
+  button.textContent = refreshSummaries ? 'Refreshing...' : 'Generating...';
   try {
-    const result = await api('/api/generate', { method: 'POST' });
+    const result = await api(`/api/generate${refreshSummaries ? '?refreshSummaries=1' : ''}`, { method: 'POST' });
     await loadDigestList(false);
     await loadDigest(result.date);
     await loadStatus();
@@ -181,7 +184,9 @@ async function generateToday() {
     elements.statusText.innerHTML = `<span class="error">${escapeHtml(error.message)}</span>`;
   } finally {
     elements.generateButton.disabled = false;
+    elements.refreshSummariesButton.disabled = false;
     elements.generateButton.textContent = 'Generate Today';
+    elements.refreshSummariesButton.textContent = 'Refresh Summaries';
   }
 }
 
@@ -205,7 +210,8 @@ elements.digestList.addEventListener('click', (event) => {
 });
 
 elements.pollButton.addEventListener('click', pollNow);
-elements.generateButton.addEventListener('click', generateToday);
+elements.generateButton.addEventListener('click', () => generateToday(false));
+elements.refreshSummariesButton.addEventListener('click', () => generateToday(true));
 elements.entries.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action][data-id]');
   if (!button) return;

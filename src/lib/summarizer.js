@@ -45,14 +45,16 @@ export async function analyzePosts(posts, config) {
         {
           role: 'system',
           content:
-            'Curate technical news metadata for a personal daily digest. Use only the provided metadata. Prefer technical relevance over hype. Be concise and do not invent facts.'
+            'Curate technical news metadata for a personal daily digest. Use only the provided title, source, URL/domain, metrics, and feed snippet. Prefer technical relevance over hype. Write self-contained summaries, but do not infer facts that are not supported by the input.'
         },
         {
           role: 'user',
           content:
             `Return JSON for these items. Mark skip=true for low-signal, duplicate, promotional, or irrelevant items. ` +
             `Classify each item into one of: hw, reddit, dev, ai_agent. ` +
-            `Importance is 1-5. Summaries should be 1 sentence. why_it_matters should be one concise sentence.\n\n` +
+            `Importance is 1-5. Summary should be 1-2 concise sentences that explain what happened and include the most specific useful entities from the title/snippet. ` +
+            `If the snippet is empty, summarize only what can be known from the title/source/domain. ` +
+            `why_it_matters should be one concise sentence for a technical reader; use an empty string if there is no clear technical relevance.\n\n` +
             JSON.stringify(posts.map(summaryInput), null, 2)
         }
       ],
@@ -118,7 +120,7 @@ export async function analyzePosts(posts, config) {
   return JSON.parse(text);
 }
 
-export async function summarizePosts(posts, config) {
+export async function summarizePosts(posts, config, options = {}) {
   if (!posts.length) {
     return { status: 'skipped_no_posts', posts };
   }
@@ -136,10 +138,16 @@ export async function summarizePosts(posts, config) {
     return { status: 'skipped_no_summary_budget', posts };
   }
 
+  const forceRefresh = Boolean(options.forceRefresh || config.summary.force_refresh);
   const candidateIndexes = posts
     .slice(0, limit)
     .map((post, index) => ({ post, index }))
-    .filter(({ post }) => !post.llm_summary && post.llm_importance === null);
+    .filter(({ post }) =>
+      forceRefresh ||
+      !post.llm_summary ||
+      post.llm_summary === '_Summary failed._' ||
+      post.llm_importance === null
+    );
   const candidates = candidateIndexes.map(({ post }) => post);
 
   if (!candidates.length) {

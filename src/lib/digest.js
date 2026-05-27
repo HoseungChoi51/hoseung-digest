@@ -44,7 +44,9 @@ export async function generateDigest(options = {}) {
     date
   );
 
-  const summarized = await summarizePosts(selectedItems.slice(0, config.summary.max_posts), config);
+  const summarized = await summarizePosts(selectedItems.slice(0, config.summary.max_posts), config, {
+    forceRefresh: Boolean(options.refreshSummaries)
+  });
   if (summarized.posts.length) {
     const updated = await upsertItems(summarized.posts, { store, now: new Date().toISOString() });
     store = updated.store;

@@ -9,6 +9,10 @@ function parseArgs(argv) {
     if (item === '--date') {
       args.date = argv[index + 1];
       index += 1;
+    } else if (item === '--refresh-summaries') {
+      args.refreshSummaries = true;
+    } else if (item === '--skip-poll') {
+      args.skipPoll = true;
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(item)) {
       args.date = item;
     }
@@ -19,7 +23,12 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const config = loadConfig();
-  const { digest, filePath } = await generateDigest({ date: args.date, config });
+  const { digest, filePath } = await generateDigest({
+    date: args.date,
+    config,
+    refreshSummaries: args.refreshSummaries,
+    skipPoll: args.skipPoll
+  });
 
   console.log(`Wrote ${filePath}`);
   console.log(`Posts: ${digest.posts.length}`);

@@ -66,7 +66,9 @@ async function route(request, response) {
         config: {
           timezone: config.timezone,
           maxPostsPerDay: config.digest.max_posts_per_day,
-          summariesEnabled: config.summary.enabled
+          summariesEnabled: config.summary.enabled,
+          summaryModel: config.summary.model,
+          summaryBudget: config.summary.max_posts
         }
       });
       return;
@@ -118,7 +120,11 @@ async function route(request, response) {
 
     if (request.method === 'POST' && url.pathname === '/api/generate') {
       const date = url.searchParams.get('date') || undefined;
-      const result = await generateDigest({ date, config });
+      const result = await generateDigest({
+        date,
+        config,
+        refreshSummaries: url.searchParams.get('refreshSummaries') === '1'
+      });
       json(response, 200, {
         date: result.digest.date,
         filePath: result.filePath,

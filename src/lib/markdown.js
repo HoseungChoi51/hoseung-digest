@@ -36,6 +36,11 @@ function renderList(items) {
   return list.map((item) => `- ${item}`).join('\n');
 }
 
+function compactTags(items) {
+  const list = (items || []).map(oneLine).filter(Boolean);
+  return list.length ? list.join(', ') : '';
+}
+
 const TAB_LABELS = {
   top: 'Top 10',
   hw: 'HW News',
@@ -61,11 +66,11 @@ function renderEntry(post) {
     `- Domain: ${oneLine(post.domain, 'reddit.com')}`,
     `- Author: ${post.author || 'unknown'}`,
     `- Importance: ${post.llm_importance ?? ''}`,
-    '- Tags: ',
+    `- Tags: ${compactTags(post.llm_tags || [])}`,
     '',
-    '#### Summary',
+    '#### LLM Summary',
     '',
-    post.llm_summary || post.raw_summary || '_No summary generated._',
+    post.llm_summary || '_No LLM summary generated._',
     '',
     '#### Why It Matters',
     '',
@@ -74,6 +79,10 @@ function renderEntry(post) {
     '#### Entities',
     '',
     renderList(post.llm_entities || []),
+    '',
+    '#### Source Snippet',
+    '',
+    post.raw_summary || '_No source snippet._',
     '',
     '#### Notes',
     '',
@@ -223,7 +232,7 @@ export function parseDigestMarkdown(markdown) {
       source: metadataValue(block, 'Source'),
       tab: metadataValue(block, 'Tab'),
       title: firstLine,
-      summary: sectionBody(block, 'Summary'),
+      summary: sectionBody(block, 'LLM Summary'),
       whyItMayMatter: [sectionBody(block, 'Why It Matters')].filter(Boolean),
       researchQuestions: [],
       entities: sectionBody(block, 'Entities')
@@ -231,6 +240,7 @@ export function parseDigestMarkdown(markdown) {
         .filter((line) => line.startsWith('- '))
         .map((line) => line.slice(2).trim()),
       cluster: metadataValue(block, 'Tab') || sectionTitle,
+      sourceSnippet: sectionBody(block, 'Source Snippet'),
       notes: sectionBody(block, 'Notes'),
       followups: sectionBody(block, 'Followups'),
       links: parseLinks(block)

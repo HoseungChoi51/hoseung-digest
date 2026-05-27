@@ -49,6 +49,23 @@ npm run digest -- --date 2026-05-27
 
 Digest generation polls first by default, ranks normalized items, runs LLM curation when configured, stores LLM outputs back into `.data/items.json`, and writes Markdown.
 
+## OpenAI Summaries
+
+Some feeds provide source snippets and some do not. Those snippets are not LLM summaries. To generate consistent LLM summaries, add an OpenAI API key to `.env.local`:
+
+```sh
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5.4-mini
+```
+
+Then regenerate the digest:
+
+```sh
+npm run digest:today -- --refresh-summaries
+```
+
+`--refresh-summaries` forces the app to replace cached LLM summaries for the selected digest candidates. Without that flag, existing LLM summaries are reused to control API cost.
+
 ## Web App
 
 Run the local server:
@@ -57,7 +74,7 @@ Run the local server:
 npm run dev
 ```
 
-Open <http://127.0.0.1:3847>. The UI supports source filters, tab filters, rendered/raw Markdown, polling, digest generation, and simple save/hide feedback.
+Open <http://127.0.0.1:3847>. The UI supports source filters, tab filters, rendered/raw Markdown, polling, digest generation, LLM summary refresh, and simple save/hide feedback.
 
 ## Content Format
 
@@ -69,7 +86,7 @@ Each digest is a Markdown file with:
 - `Dev`
 - `AI / Agent`
 
-Each entry includes source, tab, score/comments when available, hotness, summary/snippet, why-it-matters, entities, notes, follow-ups, and an `Original` link.
+Each entry includes source, tab, score/comments when available, hotness, an `LLM Summary`, `Why It Matters`, entities, a separate source snippet, notes, follow-ups, and an `Original` link.
 
 ## Tests
 

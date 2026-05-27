@@ -41,7 +41,8 @@ const DEFAULT_CONFIG = {
   summary: {
     enabled: true,
     model: 'gpt-5.4-mini',
-    max_posts: 40
+    max_posts: 40,
+    force_refresh: false
   },
   watchlist: {
     high_priority: [],
@@ -113,6 +114,7 @@ export function loadConfig(configPath = CONFIG_PATH) {
   config.poll.hn_limit = Number(config.poll.hn_limit || 40);
   config.enrichment.max_new_posts = Number(config.enrichment.max_new_posts || 0);
   config.summary.max_posts = Number(config.summary.max_posts || 0);
+  config.summary.force_refresh = config.summary.force_refresh === true;
   config.cache.ttl_hours = Number(config.cache.ttl_hours || 48);
   config.server.port = Number(process.env.PORT || config.server.port || 3847);
   config.reddit.user_agent = process.env.REDDIT_USER_AGENT || config.reddit.user_agent;
