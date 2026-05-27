@@ -1,0 +1,18 @@
+{
+  "name": "reddit-digest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local Markdown-first web app for curating subscribed Reddit posts into a daily digest.",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
+    "digest": "node src/cli/digest.js",
+    "digest:today": "node src/cli/digest.js",
+    "auth:reddit": "node src/cli/reddit-auth.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
