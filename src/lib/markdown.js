@@ -43,10 +43,13 @@ function renderEntry(post) {
     '',
     `- Score: ${post.score ?? 0}`,
     `- Comments: ${post.numComments ?? 0}`,
+    `- Comments/hour: ${Number(post.commentsPerHour || 0).toFixed(2)}`,
+    `- Score/hour: ${Number(post.scorePerHour || 0).toFixed(2)}`,
     `- Created: ${post.createdAt}`,
     `- Type: ${post.isSelf ? 'text' : 'link'}`,
     `- Domain: ${oneLine(post.domain, 'reddit.com')}`,
     `- Author: ${post.author ? `u/${post.author}` : 'unknown'}`,
+    `- Cluster: ${oneLine(post.cluster, 'Unclustered')}`,
     '- Tags: ',
     '',
     '### Summary',
@@ -56,6 +59,10 @@ function renderEntry(post) {
     '### Why It May Matter',
     '',
     renderList(post.summary?.why_it_may_matter || []),
+    '',
+    '### Research Questions',
+    '',
+    renderList(post.summary?.research_questions || []),
     '',
     '### Notes',
     '',
@@ -85,8 +92,8 @@ export function renderDigestMarkdown(digest) {
     date: digest.date,
     generated_at: digest.generatedAt,
     timezone: digest.timezone,
-    source_account: digest.sourceAccount || 'unknown',
-    subscribed_subreddit_count: digest.subscribedSubredditCount || 0,
+    source: digest.sourceAccount || 'reddit-rss',
+    configured_subreddit_count: digest.configuredSubredditCount || 0,
     post_count: digest.posts.length,
     summary_status: digest.summaryStatus || 'skipped',
     generator: 'reddit-digest/0.1.0'
@@ -140,6 +147,12 @@ function sectionBody(block, heading) {
   return (next ? rest.slice(0, next.index) : rest).trim();
 }
 
+function metadataValue(block, label) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`^- ${escaped}:\\s*(.*)$`, 'mi').exec(block);
+  return match ? match[1].trim() : '';
+}
+
 function parseLinks(block) {
   const links = {};
   const section = sectionBody(block, 'Links');
@@ -168,6 +181,11 @@ export function parseDigestMarkdown(markdown) {
         .split(/\r?\n/)
         .filter((line) => line.startsWith('- '))
         .map((line) => line.slice(2).trim()),
+      researchQuestions: sectionBody(block, 'Research Questions')
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('- '))
+        .map((line) => line.slice(2).trim()),
+      cluster: metadataValue(block, 'Cluster') || 'Unclustered',
       notes: sectionBody(block, 'Notes'),
       followups: sectionBody(block, 'Followups'),
       links: parseLinks(block)

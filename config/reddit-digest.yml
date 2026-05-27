@@ -1,22 +1,42 @@
 timezone: "Asia/Seoul"
 
+reddit:
+  user_agent: "linux:hoseung-digest:v0.2.0"
+
+poll:
+  rss_limit: 100
+
 digest:
   max_posts_per_day: 25
-  candidate_limit: 100
-  pages_per_chunk: 2
-  chunk_size: 25
+  poll_first: true
 
 subreddits:
-  # Leave include empty to use all subscribed subreddits.
-  include: []
+  # Manually maintain the subreddits you want in your digest.
+  include:
+    - MachineLearning
+    - LocalLLaMA
+    - artificial
+    - OpenAI
+    - programming
+    - compsci
+    - javascript
+    - webdev
+    - selfhosted
+    - technology
   exclude: []
   pinned: []
 
 ranking:
   score_weight: 1
-  comment_weight: 3
+  comment_weight: 2
+  comments_per_hour_weight: 25
+  score_per_hour_weight: 8
   recency_weight: 30
   pinned_boost: 500
+
+enrichment:
+  enabled: true
+  max_new_posts: 50
 
 summary:
   enabled: true

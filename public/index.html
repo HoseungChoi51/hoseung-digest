@@ -13,7 +13,7 @@
         <p id="statusText">Loading status...</p>
       </div>
       <div class="actions">
-        <a class="button secondary" href="/oauth/reddit/start">Connect Reddit</a>
+        <button id="pollButton" class="secondary" type="button">Poll RSS</button>
         <button id="generateButton" type="button">Generate Today</button>
       </div>
     </header>
@@ -28,6 +28,12 @@
           <label for="subredditFilter">Subreddit</label>
           <select id="subredditFilter">
             <option value="">All subreddits</option>
+          </select>
+        </div>
+        <div class="filter-block">
+          <label for="clusterFilter">Cluster</label>
+          <select id="clusterFilter">
+            <option value="">All clusters</option>
           </select>
         </div>
         <nav id="digestList" class="digest-list" aria-label="Digest dates"></nav>

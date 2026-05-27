@@ -3,11 +3,11 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { loadConfig } from './lib/config.js';
 import { generateDigest } from './lib/digest.js';
 import { listDigests, readDigest } from './lib/markdown.js';
-import { buildAuthUrl, exchangeAuthorizationCode, tokenStatus } from './lib/reddit.js';
+import { pollSubreddits } from './lib/poller.js';
+import { postStoreStats, readPostStore } from './lib/post-store.js';
 import { PUBLIC_DIR } from './lib/paths.js';
 
 const MIME_TYPES = {
@@ -19,7 +19,6 @@ const MIME_TYPES = {
 };
 
 const config = loadConfig();
-const oauthStates = new Set();
 
 function send(response, status, body, headers = {}) {
   response.writeHead(status, headers);
@@ -30,10 +29,6 @@ function json(response, status, body) {
   send(response, status, JSON.stringify(body, null, 2), {
     'Content-Type': 'application/json; charset=utf-8'
   });
-}
-
-function redirect(response, location) {
-  send(response, 302, '', { Location: location });
 }
 
 async function serveStatic(request, response) {
@@ -58,14 +53,36 @@ async function route(request, response) {
 
   try {
     if (request.method === 'GET' && url.pathname === '/api/status') {
+      const store = await readPostStore();
       json(response, 200, {
-        reddit: await tokenStatus(),
+        reddit: {
+          source: 'rss',
+          configuredSubreddits: config.subreddits.include.length,
+          excludedSubreddits: config.subreddits.exclude.length,
+          enrichmentEnabled: config.enrichment.enabled
+        },
         openai: { configured: Boolean(process.env.OPENAI_API_KEY) },
+        postStore: postStoreStats(store),
         config: {
           timezone: config.timezone,
           maxPostsPerDay: config.digest.max_posts_per_day,
           summariesEnabled: config.summary.enabled
         }
+      });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/poll') {
+      const result = await pollSubreddits(config);
+      json(response, 200, {
+        subreddits: result.subreddits.length,
+        fetched: result.fetched,
+        inserted: result.inserted,
+        updated: result.updated,
+        enriched: result.enriched,
+        enrichmentErrors: result.enrichmentErrors,
+        errors: result.errors,
+        postStore: postStoreStats(result.store)
       });
       return;
     }
@@ -90,29 +107,6 @@ async function route(request, response) {
         postCount: result.digest.posts.length,
         summaryStatus: result.digest.summaryStatus
       });
-      return;
-    }
-
-    if (request.method === 'GET' && url.pathname === '/oauth/reddit/start') {
-      const state = crypto.randomBytes(16).toString('hex');
-      oauthStates.add(state);
-      const auth = buildAuthUrl(state);
-      redirect(response, auth.url);
-      return;
-    }
-
-    if (request.method === 'GET' && url.pathname === '/oauth/reddit/callback') {
-      const state = url.searchParams.get('state');
-      const code = url.searchParams.get('code');
-      const error = url.searchParams.get('error');
-
-      if (error) throw new Error(`Reddit OAuth returned: ${error}`);
-      if (!state || !oauthStates.has(state)) throw new Error('Invalid OAuth state.');
-      if (!code) throw new Error('Missing OAuth code.');
-
-      oauthStates.delete(state);
-      await exchangeAuthorizationCode(code);
-      redirect(response, '/?auth=reddit-ok');
       return;
     }
 

@@ -13,19 +13,23 @@ function extractResponseText(responseBody) {
 
 function summaryInput(post) {
   return {
+    post_id: post.post_id || post.id,
     subreddit: post.subreddit,
     title: post.title,
     type: post.isSelf ? 'text' : 'link',
     domain: post.domain,
     score: post.score,
     comments: post.numComments,
+    comments_per_hour: Number(post.commentsPerHour || 0).toFixed(2),
+    score_per_hour: Number(post.scorePerHour || 0).toFixed(2),
+    published: post.createdAt || post.published,
     reddit_url: post.permalink,
     external_url: post.externalUrl,
-    selftext_excerpt: post.selftextExcerpt || ''
+    snippet: post.selftextExcerpt || post.snippet || ''
   };
 }
 
-export async function summarizePost(post, config) {
+export async function analyzePosts(posts, config) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
@@ -41,31 +45,58 @@ export async function summarizePost(post, config) {
         {
           role: 'system',
           content:
-            'Summarize Reddit posts for a personal daily digest. Be concise, factual, and avoid inventing details that are not present in the input.'
+            'Filter, cluster, and summarize Reddit post metadata for a personal daily digest. Use only the provided metadata. Be concise and do not invent facts.'
         },
         {
           role: 'user',
           content:
-            `Return JSON for this post. The summary should be 1-2 sentences. ` +
-            `The why_it_may_matter list should contain 1-3 short bullets.\n\n` +
-            JSON.stringify(summaryInput(post), null, 2)
+            `Return JSON for these posts. Mark include=false for low-signal posts. ` +
+            `Use short cluster labels. Summaries should be 1 sentence per included post. ` +
+            `why_it_may_matter should contain 1-3 short bullets.\n\n` +
+            JSON.stringify(posts.map(summaryInput), null, 2)
         }
       ],
       text: {
         format: {
           type: 'json_schema',
-          name: 'reddit_post_summary',
+          name: 'reddit_digest_analysis',
           schema: {
             type: 'object',
             additionalProperties: false,
-            required: ['summary', 'why_it_may_matter'],
+            required: ['entries'],
             properties: {
-              summary: { type: 'string' },
-              why_it_may_matter: {
+              entries: {
                 type: 'array',
-                minItems: 1,
-                maxItems: 3,
-                items: { type: 'string' }
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: [
+                    'post_id',
+                    'include',
+                    'cluster',
+                    'summary',
+                    'why_it_may_matter',
+                    'research_questions'
+                  ],
+                  properties: {
+                    post_id: { type: 'string' },
+                    include: { type: 'boolean' },
+                    cluster: { type: 'string' },
+                    summary: { type: 'string' },
+                    why_it_may_matter: {
+                      type: 'array',
+                      minItems: 0,
+                      maxItems: 3,
+                      items: { type: 'string' }
+                    },
+                    research_questions: {
+                      type: 'array',
+                      minItems: 0,
+                      maxItems: 3,
+                      items: { type: 'string' }
+                    }
+                  }
+                }
               }
             }
           },
@@ -84,19 +115,18 @@ export async function summarizePost(post, config) {
   }
 
   if (!response.ok) {
-    throw new Error(`OpenAI summary failed: ${response.status} ${JSON.stringify(body)}`);
+    throw new Error(`OpenAI digest analysis failed: ${response.status} ${JSON.stringify(body)}`);
   }
 
   const text = extractResponseText(body);
-  const parsed = JSON.parse(text);
-
-  return {
-    summary: parsed.summary,
-    why_it_may_matter: parsed.why_it_may_matter
-  };
+  return JSON.parse(text);
 }
 
 export async function summarizePosts(posts, config) {
+  if (!posts.length) {
+    return { status: 'skipped_no_posts', posts };
+  }
+
   if (!config.summary.enabled) {
     return { status: 'disabled', posts };
   }
@@ -106,22 +136,49 @@ export async function summarizePosts(posts, config) {
   }
 
   const limit = Math.min(config.summary.max_posts, posts.length);
-  let failed = 0;
-
-  for (let index = 0; index < limit; index += 1) {
-    try {
-      posts[index].summary = await summarizePost(posts[index], config);
-    } catch (error) {
-      failed += 1;
-      posts[index].summary = {
-        summary: '_Summary failed._',
-        why_it_may_matter: [error.message]
-      };
-    }
+  if (limit === 0) {
+    return { status: 'skipped_no_summary_budget', posts };
   }
 
-  return {
-    status: failed ? `completed_with_${failed}_summary_errors` : 'completed',
-    posts
-  };
+  const candidates = posts.slice(0, limit);
+
+  try {
+    const analysis = await analyzePosts(candidates, config);
+    const byId = new Map((analysis?.entries || []).map((entry) => [entry.post_id, entry]));
+    const analyzed = candidates
+      .map((post) => {
+        const entry = byId.get(post.post_id || post.id);
+        if (!entry) return { ...post, cluster: 'Unclustered' };
+        return {
+          ...post,
+          cluster: entry.cluster || 'Unclustered',
+          summary: {
+            summary: entry.summary || '_No summary generated._',
+            why_it_may_matter: entry.why_it_may_matter || [],
+            research_questions: entry.research_questions || []
+          },
+          llmIncluded: entry.include !== false
+        };
+      })
+      .filter((post) => post.llmIncluded !== false);
+
+    return {
+      status: 'completed',
+      posts: analyzed.concat(posts.slice(limit))
+    };
+  } catch (error) {
+    for (const post of candidates) {
+      post.cluster = 'Unclustered';
+      post.summary = {
+        summary: '_Summary failed._',
+        why_it_may_matter: [error.message],
+        research_questions: []
+      };
+    }
+
+    return {
+      status: 'completed_with_summary_error',
+      posts
+    };
+  }
 }

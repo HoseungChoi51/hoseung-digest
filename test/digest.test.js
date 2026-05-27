@@ -17,6 +17,8 @@ const config = {
   ranking: {
     score_weight: 1,
     comment_weight: 3,
+    comments_per_hour_weight: 25,
+    score_per_hour_weight: 8,
     recency_weight: 30,
     pinned_boost: 500
   }
@@ -42,18 +44,18 @@ test('dedupes posts by reddit fullname', () => {
 test('filters and ranks posts for a local day', () => {
   const posts = [
     {
-      name: 't3_a',
+      post_id: 'a',
       subreddit: 'programming',
       score: 1,
       numComments: 0,
-      createdUtc: Date.parse('2026-05-26T16:00:00Z') / 1000
+      published: '2026-05-26T16:00:00Z'
     },
     {
-      name: 't3_b',
+      post_id: 'b',
       subreddit: 'news',
       score: 100,
       numComments: 0,
-      createdUtc: Date.parse('2026-05-25T12:00:00Z') / 1000
+      published: '2026-05-25T12:00:00Z'
     }
   ];
 
@@ -61,6 +63,6 @@ test('filters and ranks posts for a local day', () => {
   assert.equal(filtered.length, 1);
 
   const ranked = rankPosts(filtered, config, '2026-05-27');
-  assert.equal(ranked[0].name, 't3_a');
+  assert.equal(ranked[0].post_id, 'a');
   assert.ok(ranked[0].rank > 500);
 });

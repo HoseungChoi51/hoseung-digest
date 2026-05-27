@@ -6,6 +6,7 @@ const state = {
 
 const elements = {
   statusText: document.querySelector('#statusText'),
+  pollButton: document.querySelector('#pollButton'),
   generateButton: document.querySelector('#generateButton'),
   digestList: document.querySelector('#digestList'),
   digestTitle: document.querySelector('#digestTitle'),
@@ -15,7 +16,8 @@ const elements = {
   rawMarkdown: document.querySelector('#rawMarkdown'),
   toggleRawButton: document.querySelector('#toggleRawButton'),
   searchInput: document.querySelector('#searchInput'),
-  subredditFilter: document.querySelector('#subredditFilter')
+  subredditFilter: document.querySelector('#subredditFilter'),
+  clusterFilter: document.querySelector('#clusterFilter')
 };
 
 async function api(path, options = {}) {
@@ -59,6 +61,15 @@ function updateSubredditFilter(entries) {
   elements.subredditFilter.value = subreddits.includes(current) ? current : '';
 }
 
+function updateClusterFilter(entries) {
+  const current = elements.clusterFilter.value;
+  const clusters = [...new Set(entries.map((entry) => entry.cluster).filter(Boolean))].sort();
+  elements.clusterFilter.innerHTML =
+    '<option value="">All clusters</option>' +
+    clusters.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+  elements.clusterFilter.value = clusters.includes(current) ? current : '';
+}
+
 function renderEntry(entry) {
   const links = Object.entries(entry.links || {})
     .map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`)
@@ -66,11 +77,12 @@ function renderEntry(entry) {
 
   return `
     <article class="entry" data-subreddit="${escapeHtml(entry.subreddit)}" data-search="${escapeHtml(
-      `${entry.title} ${entry.summary} ${entry.whyItMayMatter.join(' ')} ${entry.subreddit}`.toLowerCase()
-    )}">
+      `${entry.title} ${entry.summary} ${entry.whyItMayMatter.join(' ')} ${entry.researchQuestions.join(' ')} ${entry.cluster} ${entry.subreddit}`.toLowerCase()
+    )}" data-cluster="${escapeHtml(entry.cluster || 'Unclustered')}">
       <h3>${escapeHtml(entry.title)}</h3>
       <div class="entry-meta">
         <span class="pill">r/${escapeHtml(entry.subreddit)}</span>
+        <span class="pill">${escapeHtml(entry.cluster || 'Unclustered')}</span>
       </div>
       <div class="section-title">Summary</div>
       <p>${escapeHtml(entry.summary.replace(/^_No summary generated\._$/, 'No summary generated.'))}</p>
@@ -85,11 +97,13 @@ function renderEntry(entry) {
 function applyFilters() {
   const query = elements.searchInput.value.trim().toLowerCase();
   const subreddit = elements.subredditFilter.value;
+  const cluster = elements.clusterFilter.value;
 
   for (const entry of elements.entries.querySelectorAll('.entry')) {
     const matchesQuery = !query || entry.dataset.search.includes(query);
     const matchesSubreddit = !subreddit || entry.dataset.subreddit === subreddit;
-    entry.hidden = !(matchesQuery && matchesSubreddit);
+    const matchesCluster = !cluster || entry.dataset.cluster === cluster;
+    entry.hidden = !(matchesQuery && matchesSubreddit && matchesCluster);
   }
 }
 
@@ -115,15 +129,17 @@ function renderCurrentDigest() {
   elements.entries.innerHTML = digest.entries.map(renderEntry).join('');
   elements.rawMarkdown.textContent = digest.markdown;
   updateSubredditFilter(digest.entries);
+  updateClusterFilter(digest.entries);
   applyFilters();
 }
 
 async function loadStatus() {
   try {
     const status = await api('/api/status');
-    const auth = status.reddit.authenticated ? 'Reddit connected' : 'Reddit not connected';
+    const source = `${status.reddit.configuredSubreddits} RSS subreddits`;
+    const stored = `${status.postStore.totalPosts} stored posts`;
     const ai = status.openai.configured ? 'OpenAI summaries enabled' : 'OpenAI summaries skipped';
-    elements.statusText.textContent = `${auth} · ${ai} · ${status.config.timezone}`;
+    elements.statusText.textContent = `${source} · ${stored} · ${ai} · ${status.config.timezone}`;
   } catch (error) {
     elements.statusText.innerHTML = `<span class="error">${escapeHtml(error.message)}</span>`;
   }
@@ -162,11 +178,26 @@ async function generateToday() {
   }
 }
 
+async function pollNow() {
+  elements.pollButton.disabled = true;
+  elements.pollButton.textContent = 'Polling...';
+  try {
+    await api('/api/poll', { method: 'POST' });
+    await loadStatus();
+  } catch (error) {
+    elements.statusText.innerHTML = `<span class="error">${escapeHtml(error.message)}</span>`;
+  } finally {
+    elements.pollButton.disabled = false;
+    elements.pollButton.textContent = 'Poll RSS';
+  }
+}
+
 elements.digestList.addEventListener('click', (event) => {
   const button = event.target.closest('[data-date]');
   if (button) loadDigest(button.dataset.date);
 });
 
+elements.pollButton.addEventListener('click', pollNow);
 elements.generateButton.addEventListener('click', generateToday);
 elements.toggleRawButton.addEventListener('click', () => {
   state.showRaw = !state.showRaw;
@@ -175,6 +206,7 @@ elements.toggleRawButton.addEventListener('click', () => {
 });
 elements.searchInput.addEventListener('input', applyFilters);
 elements.subredditFilter.addEventListener('change', applyFilters);
+elements.clusterFilter.addEventListener('change', applyFilters);
 
 await loadStatus();
 await loadDigestList();

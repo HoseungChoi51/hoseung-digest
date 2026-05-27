@@ -1,37 +1,30 @@
 # Reddit Digest
 
-A local, Markdown-first web app for turning your subscribed Reddit posts into a daily digest without Reddit's web feed distractions.
+A local, Markdown-first web app for turning selected subreddit RSS feeds into a daily digest without Reddit's web feed distractions.
 
-The durable source of truth is `content/digests/YYYY-MM-DD.md`. Runtime state such as OAuth tokens and temporary fetch cache lives under `.data/`.
+The durable source of truth is `content/digests/YYYY-MM-DD.md`. Runtime state such as seen posts and temporary fetch cache lives under `.data/`.
 
 ## Requirements
 
 - Node.js 22 or newer
-- A Reddit OAuth web app from <https://www.reddit.com/prefs/apps>
+- A manually maintained subreddit list in `config/reddit-digest.yml`
 - Optional OpenAI API key for summaries
 
 ## Setup
 
 1. Copy `.env.example` to `.env.local`.
-2. Fill in `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, and `REDDIT_USER_AGENT`.
-3. Keep the redirect URI in Reddit's app settings identical to `REDDIT_REDIRECT_URI`.
-4. Optional: set `OPENAI_API_KEY` to enable summaries.
-5. Adjust `config/reddit-digest.yml` for subreddit filters, ranking, and digest size.
+2. Optional: set `REDDIT_USER_AGENT`.
+3. Optional: set `OPENAI_API_KEY` to enable filtering, clustering, and summaries.
+4. Adjust `config/reddit-digest.yml` with the subreddits you want to follow.
 
-## Authenticate Reddit
+No Reddit OAuth app is required. The app polls public RSS feeds such as `https://www.reddit.com/r/programming/new/.rss?limit=100`.
 
-Run the local app:
+## Poll RSS
 
-```sh
-npm run dev
-```
-
-Open <http://127.0.0.1:3847>, then use **Connect Reddit**.
-
-You can also authenticate from the terminal:
+Poll configured subreddit RSS feeds and store seen posts locally:
 
 ```sh
-npm run auth:reddit
+npm run poll
 ```
 
 ## Generate A Digest
@@ -52,9 +45,9 @@ The web app also has a generate button that invokes the same digest generator.
 
 ## Content Format
 
-Each digest is a Markdown file with frontmatter and repeated post entries. Entries include metadata, optional AI summary, notes, follow-up checkboxes, Reddit/external links, and an `Original` link at the end.
+Each digest is a Markdown file with frontmatter and repeated post entries. Entries include metadata, comments-per-hour, score-per-hour, optional AI cluster/summary, notes, follow-up checkboxes, Reddit/external links, and an `Original` link at the end.
 
-Raw Reddit API responses are only temporary cache. By default, new digest runs fetch fresh data, write a short-lived cache copy, and purge cache files older than 48 hours. Set `cache.reuse: true` only when you intentionally want to reuse recent cached responses.
+RSS/JSON responses are only temporary inputs. The local post store keeps lightweight metadata in `.data/posts.json`; Markdown digests remain the durable human-readable record.
 
 ## Tests
 
@@ -64,7 +57,5 @@ npm test
 
 ## References
 
-- Reddit Data API Wiki: <https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki>
-- Reddit API docs: <https://www.reddit.com/dev/api/>
-- Reddit OAuth2 wiki: <https://github.com/reddit-archive/reddit/wiki/OAuth2>
+- Reddit RSS feeds are consumed from subreddit `/new/.rss` endpoints.
 - OpenAI API docs: <https://developers.openai.com/api>
