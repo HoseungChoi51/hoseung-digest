@@ -153,6 +153,25 @@ select {
   margin-top: 20px;
 }
 
+.tab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0;
+}
+
+.tab-button,
+button.small {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.tab-button.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .digest-link {
   display: block;
   width: 100%;
@@ -240,6 +259,13 @@ select {
 }
 
 .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.entry-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

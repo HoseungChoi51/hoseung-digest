@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Reddit Digest</title>
+    <title>Daily Tech Digest</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <header class="topbar">
       <div>
-        <h1>Reddit Digest</h1>
+        <h1>Daily Tech Digest</h1>
         <p id="statusText">Loading status...</p>
       </div>
       <div class="actions">
@@ -25,17 +25,24 @@
           <input id="searchInput" type="search" placeholder="Search local digests">
         </div>
         <div class="filter-block">
-          <label for="subredditFilter">Subreddit</label>
-          <select id="subredditFilter">
-            <option value="">All subreddits</option>
+          <label for="sourceFilter">Source</label>
+          <select id="sourceFilter">
+            <option value="">All sources</option>
           </select>
         </div>
         <div class="filter-block">
-          <label for="clusterFilter">Cluster</label>
-          <select id="clusterFilter">
-            <option value="">All clusters</option>
+          <label for="tabFilter">Tab</label>
+          <select id="tabFilter">
+            <option value="">All tabs</option>
           </select>
         </div>
+        <nav class="tab-nav" aria-label="Digest tabs">
+          <button class="tab-button active" data-tab="" type="button">All</button>
+          <button class="tab-button" data-tab="hw" type="button">HW</button>
+          <button class="tab-button" data-tab="reddit" type="button">Reddit</button>
+          <button class="tab-button" data-tab="dev" type="button">Dev</button>
+          <button class="tab-button" data-tab="ai_agent" type="button">AI / Agent</button>
+        </nav>
         <nav id="digestList" class="digest-list" aria-label="Digest dates"></nav>
       </aside>
 

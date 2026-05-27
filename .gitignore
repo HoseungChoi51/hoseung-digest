@@ -1,4 +1,5 @@
 .data/
+content/digests/
 .env
 .env.local
 node_modules/

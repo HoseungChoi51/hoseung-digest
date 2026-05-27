@@ -5,9 +5,12 @@ reddit:
 
 poll:
   rss_limit: 100
+  hn_limit: 40
 
 digest:
   max_posts_per_day: 25
+  max_items_per_tab: 20
+  top_items: 10
   poll_first: true
 
 subreddits:
@@ -27,12 +30,15 @@ subreddits:
   pinned: []
 
 ranking:
+  source_priority_weight: 100
   score_weight: 1
   comment_weight: 2
   comments_per_hour_weight: 25
   score_per_hour_weight: 8
   recency_weight: 30
   pinned_boost: 500
+  watchlist_boost: 120
+  negative_keyword_penalty: 120
 
 enrichment:
   enabled: true
@@ -41,7 +47,33 @@ enrichment:
 summary:
   enabled: true
   model: "gpt-5.4-mini"
-  max_posts: 10
+  max_posts: 40
+
+watchlist:
+  high_priority:
+    - CUDA
+    - ROCm
+    - NVIDIA
+    - AMD
+    - Intel
+    - Linux kernel
+    - GPU
+    - HPC
+    - supercomputing
+    - RISC-V
+    - agents
+    - MCP
+    - LangChain
+    - LlamaIndex
+    - OpenAI
+    - Anthropic
+    - local LLM
+    - inference
+  negative_or_low_priority:
+    - celebrity
+    - coupon
+    - sale
+    - generic smartphone deal
 
 cache:
   ttl_hours: 48

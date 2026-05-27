@@ -1,85 +1,73 @@
-import { fetchSubredditRss, extractPostId } from './rss.js';
-import { readPostStore, upsertPosts } from './post-store.js';
+import { enrichRedditItem, fetchSource } from './adapters.js';
+import { readItemStore, updateSourceHealth, upsertItems } from './item-store.js';
 
-function selectedSubreddits(config) {
-  const excluded = new Set(config.subreddits.exclude.map((name) => name.toLowerCase()));
-  return config.subreddits.include.filter((name) => !excluded.has(name.toLowerCase()));
-}
-
-function postJsonUrl(post) {
-  if (post.url && post.url.includes('/comments/')) {
-    return `${post.url.replace(/\/$/, '')}.json?raw_json=1`;
-  }
-  return `https://www.reddit.com/comments/${post.post_id}.json?raw_json=1`;
-}
-
-function readListingPost(json, fallbackPostId) {
-  const child = json?.[0]?.data?.children?.[0]?.data;
-  if (!child) return null;
-
-  return {
-    post_id: child.id || fallbackPostId,
-    score: Number(child.score || 0),
-    numComments: Number(child.num_comments || 0),
-    domain: child.domain || '',
-    externalUrl: child.url || '',
-    isSelf: Boolean(child.is_self),
-    over18: Boolean(child.over_18),
-    enriched_at: new Date().toISOString(),
-    enrichment_error: ''
-  };
-}
-
-export async function enrichPost(post, config, fetchImpl = fetch) {
-  const response = await fetchImpl(postJsonUrl(post), {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': config.reddit.user_agent
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`JSON enrichment failed for ${post.post_id}: ${response.status}`);
-  }
-
-  const json = await response.json();
-  return readListingPost(json, post.post_id);
-}
-
-export async function pollSubreddits(config, options = {}) {
+export async function pollSources(config, options = {}) {
   const fetchImpl = options.fetchImpl || fetch;
   const now = options.now || new Date().toISOString();
-  const store = options.store || (await readPostStore(options.storePath));
-  const subreddits = selectedSubreddits(config);
+  let store = options.store || (await readItemStore(options.storePath));
+  const sources = (options.sources || config.sources || []).filter((source) => source.enabled !== false);
   const fetched = [];
   const errors = [];
+  const notModified = [];
 
-  if (!subreddits.length) {
-    throw new Error('No subreddits configured. Add names to subreddits.include in config/reddit-digest.yml.');
+  if (!sources.length) {
+    throw new Error('No sources configured. Add source records to config/sources.yml or subreddits.include.');
   }
 
-  for (const subreddit of subreddits) {
+  for (const source of sources) {
     try {
-      const posts = await fetchSubredditRss(subreddit, config, fetchImpl);
-      fetched.push(...posts.map((post) => ({ ...post, seen_at: now })));
+      const result = await fetchSource(source, config, {
+        fetchImpl,
+        now,
+        sourceState: store.sources[source.id] || {}
+      });
+
+      if (result.notModified) {
+        notModified.push(source.id);
+      }
+
+      fetched.push(...result.items);
+      store = await updateSourceHealth(
+        source,
+        {
+          etag: result.etag || store.sources[source.id]?.etag || '',
+          last_modified: result.lastModified || store.sources[source.id]?.last_modified || '',
+          last_fetched_at: now,
+          last_success_at: now,
+          last_error: ''
+        },
+        { store, storePath: options.storePath }
+      );
     } catch (error) {
-      errors.push({ subreddit, error: error.message });
+      errors.push({ source_id: source.id, source: source.name, error: error.message });
+      store = await updateSourceHealth(
+        source,
+        {
+          last_fetched_at: now,
+          last_error: error.message
+        },
+        { store, storePath: options.storePath }
+      );
     }
   }
 
-  const firstPass = await upsertPosts(fetched, { store, storePath: options.storePath, now });
-  const postsToEnrich = config.enrichment.enabled
-    ? firstPass.newPosts.slice(0, config.enrichment.max_new_posts)
+  const firstPass = await upsertItems(fetched, { store, storePath: options.storePath, now });
+  store = firstPass.store;
+
+  const itemsToEnrich = config.enrichment.enabled
+    ? firstPass.newItems
+        .filter((item) => item.adapter === 'reddit_rss')
+        .slice(0, config.enrichment.max_new_posts)
     : [];
 
   const enriched = [];
-  for (const post of postsToEnrich) {
+  for (const item of itemsToEnrich) {
     try {
-      const metadata = await enrichPost(post, config, fetchImpl);
-      if (metadata) enriched.push({ ...metadata, post_id: extractPostId(metadata.post_id) || metadata.post_id });
+      const metadata = await enrichRedditItem(item, config, fetchImpl);
+      if (metadata) enriched.push(metadata);
     } catch (error) {
       enriched.push({
-        post_id: post.post_id,
+        ...item,
         enrichment_error: error.message,
         enriched_at: new Date().toISOString()
       });
@@ -87,17 +75,23 @@ export async function pollSubreddits(config, options = {}) {
   }
 
   const finalPass = enriched.length
-    ? await upsertPosts(enriched, { store: firstPass.store, storePath: options.storePath, now })
+    ? await upsertItems(enriched, { store, storePath: options.storePath, now })
     : firstPass;
 
   return {
     store: finalPass.store,
-    subreddits,
+    sources,
     fetched: fetched.length,
     inserted: firstPass.inserted,
     updated: firstPass.updated,
     enriched: enriched.filter((post) => !post.enrichment_error).length,
     enrichmentErrors: enriched.filter((post) => post.enrichment_error).length,
+    notModified,
     errors
   };
+}
+
+export async function pollSubreddits(config, options = {}) {
+  const redditSources = (config.sources || []).filter((source) => source.adapter === 'reddit_rss');
+  return pollSources(config, { ...options, sources: redditSources });
 }

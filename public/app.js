@@ -16,8 +16,9 @@ const elements = {
   rawMarkdown: document.querySelector('#rawMarkdown'),
   toggleRawButton: document.querySelector('#toggleRawButton'),
   searchInput: document.querySelector('#searchInput'),
-  subredditFilter: document.querySelector('#subredditFilter'),
-  clusterFilter: document.querySelector('#clusterFilter')
+  sourceFilter: document.querySelector('#sourceFilter'),
+  tabFilter: document.querySelector('#tabFilter'),
+  tabNav: document.querySelector('.tab-nav')
 };
 
 async function api(path, options = {}) {
@@ -52,22 +53,22 @@ function renderDigests() {
     .join('');
 }
 
-function updateSubredditFilter(entries) {
-  const current = elements.subredditFilter.value;
-  const subreddits = [...new Set(entries.map((entry) => entry.subreddit).filter(Boolean))].sort();
-  elements.subredditFilter.innerHTML =
-    '<option value="">All subreddits</option>' +
-    subreddits.map((name) => `<option value="${escapeHtml(name)}">r/${escapeHtml(name)}</option>`).join('');
-  elements.subredditFilter.value = subreddits.includes(current) ? current : '';
+function updateSourceFilter(entries) {
+  const current = elements.sourceFilter.value;
+  const sources = [...new Set(entries.map((entry) => entry.source).filter(Boolean))].sort();
+  elements.sourceFilter.innerHTML =
+    '<option value="">All sources</option>' +
+    sources.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+  elements.sourceFilter.value = sources.includes(current) ? current : '';
 }
 
-function updateClusterFilter(entries) {
-  const current = elements.clusterFilter.value;
-  const clusters = [...new Set(entries.map((entry) => entry.cluster).filter(Boolean))].sort();
-  elements.clusterFilter.innerHTML =
-    '<option value="">All clusters</option>' +
-    clusters.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
-  elements.clusterFilter.value = clusters.includes(current) ? current : '';
+function updateTabFilter(entries) {
+  const current = elements.tabFilter.value;
+  const tabs = [...new Set(entries.map((entry) => entry.tab).filter(Boolean))].sort();
+  elements.tabFilter.innerHTML =
+    '<option value="">All tabs</option>' +
+    tabs.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+  elements.tabFilter.value = tabs.includes(current) ? current : '';
 }
 
 function renderEntry(entry) {
@@ -76,34 +77,39 @@ function renderEntry(entry) {
     .join('');
 
   return `
-    <article class="entry" data-subreddit="${escapeHtml(entry.subreddit)}" data-search="${escapeHtml(
-      `${entry.title} ${entry.summary} ${entry.whyItMayMatter.join(' ')} ${entry.researchQuestions.join(' ')} ${entry.cluster} ${entry.subreddit}`.toLowerCase()
-    )}" data-cluster="${escapeHtml(entry.cluster || 'Unclustered')}">
+    <article class="entry" data-id="${escapeHtml(entry.id)}" data-source="${escapeHtml(entry.source)}" data-tab="${escapeHtml(entry.tab)}" data-search="${escapeHtml(
+      `${entry.title} ${entry.summary} ${entry.whyItMayMatter.join(' ')} ${entry.entities.join(' ')} ${entry.source} ${entry.tab}`.toLowerCase()
+    )}">
       <h3>${escapeHtml(entry.title)}</h3>
       <div class="entry-meta">
-        <span class="pill">r/${escapeHtml(entry.subreddit)}</span>
-        <span class="pill">${escapeHtml(entry.cluster || 'Unclustered')}</span>
+        <span class="pill">${escapeHtml(entry.source || 'Unknown source')}</span>
+        <span class="pill">${escapeHtml(entry.tab || 'dev')}</span>
+        <span class="pill">${escapeHtml(entry.section || '')}</span>
       </div>
       <div class="section-title">Summary</div>
       <p>${escapeHtml(entry.summary.replace(/^_No summary generated\._$/, 'No summary generated.'))}</p>
-      <div class="section-title">Why It May Matter</div>
+      <div class="section-title">Why It Matters</div>
       ${markdownListToHtml(entry.whyItMayMatter)}
       <div class="section-title">Links</div>
       <div class="links">${links}</div>
+      <div class="entry-actions">
+        <button class="secondary small" data-action="save" data-id="${escapeHtml(entry.id)}" type="button">Save</button>
+        <button class="secondary small" data-action="hide" data-id="${escapeHtml(entry.id)}" type="button">Hide</button>
+      </div>
     </article>
   `;
 }
 
 function applyFilters() {
   const query = elements.searchInput.value.trim().toLowerCase();
-  const subreddit = elements.subredditFilter.value;
-  const cluster = elements.clusterFilter.value;
+  const source = elements.sourceFilter.value;
+  const tab = elements.tabFilter.value;
 
   for (const entry of elements.entries.querySelectorAll('.entry')) {
     const matchesQuery = !query || entry.dataset.search.includes(query);
-    const matchesSubreddit = !subreddit || entry.dataset.subreddit === subreddit;
-    const matchesCluster = !cluster || entry.dataset.cluster === cluster;
-    entry.hidden = !(matchesQuery && matchesSubreddit && matchesCluster);
+    const matchesSource = !source || entry.dataset.source === source;
+    const matchesTab = !tab || entry.dataset.tab === tab;
+    entry.hidden = !(matchesQuery && matchesSource && matchesTab);
   }
 }
 
@@ -124,22 +130,23 @@ function renderCurrentDigest() {
     return;
   }
 
-  elements.digestTitle.textContent = `Reddit Digest - ${digest.metadata.date}`;
-  elements.digestMeta.textContent = `${digest.metadata.post_count || digest.entries.length} posts · summaries ${digest.metadata.summary_status || 'unknown'}`;
+  elements.digestTitle.textContent = `Daily Tech Digest - ${digest.metadata.date}`;
+  elements.digestMeta.textContent = `${digest.metadata.post_count || digest.entries.length} items · summaries ${digest.metadata.summary_status || 'unknown'}`;
   elements.entries.innerHTML = digest.entries.map(renderEntry).join('');
   elements.rawMarkdown.textContent = digest.markdown;
-  updateSubredditFilter(digest.entries);
-  updateClusterFilter(digest.entries);
+  updateSourceFilter(digest.entries);
+  updateTabFilter(digest.entries);
   applyFilters();
 }
 
 async function loadStatus() {
   try {
     const status = await api('/api/status');
-    const source = `${status.reddit.configuredSubreddits} RSS subreddits`;
-    const stored = `${status.postStore.totalPosts} stored posts`;
+    const source = `${status.sources.configured} sources`;
+    const stored = `${status.itemStore.totalItems} stored items`;
+    const health = `${status.itemStore.errorSources} source errors`;
     const ai = status.openai.configured ? 'OpenAI summaries enabled' : 'OpenAI summaries skipped';
-    elements.statusText.textContent = `${source} · ${stored} · ${ai} · ${status.config.timezone}`;
+    elements.statusText.textContent = `${source} · ${stored} · ${health} · ${ai} · ${status.config.timezone}`;
   } catch (error) {
     elements.statusText.innerHTML = `<span class="error">${escapeHtml(error.message)}</span>`;
   }
@@ -199,14 +206,38 @@ elements.digestList.addEventListener('click', (event) => {
 
 elements.pollButton.addEventListener('click', pollNow);
 elements.generateButton.addEventListener('click', generateToday);
+elements.entries.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action][data-id]');
+  if (!button) return;
+  button.disabled = true;
+  try {
+    await api(`/api/items/${encodeURIComponent(button.dataset.id)}/${button.dataset.action}`, { method: 'POST' });
+    if (button.dataset.action === 'hide') {
+      button.closest('.entry').hidden = true;
+    }
+  } catch (error) {
+    elements.statusText.innerHTML = `<span class="error">${escapeHtml(error.message)}</span>`;
+  } finally {
+    button.disabled = false;
+  }
+});
 elements.toggleRawButton.addEventListener('click', () => {
   state.showRaw = !state.showRaw;
   elements.toggleRawButton.textContent = state.showRaw ? 'Rendered View' : 'Raw Markdown';
   renderCurrentDigest();
 });
 elements.searchInput.addEventListener('input', applyFilters);
-elements.subredditFilter.addEventListener('change', applyFilters);
-elements.clusterFilter.addEventListener('change', applyFilters);
+elements.sourceFilter.addEventListener('change', applyFilters);
+elements.tabFilter.addEventListener('change', applyFilters);
+elements.tabNav.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-tab]');
+  if (!button) return;
+  elements.tabFilter.value = button.dataset.tab;
+  for (const item of elements.tabNav.querySelectorAll('.tab-button')) {
+    item.classList.toggle('active', item === button);
+  }
+  applyFilters();
+});
 
 await loadStatus();
 await loadDigestList();

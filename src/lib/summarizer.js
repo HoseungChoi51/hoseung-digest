@@ -13,19 +13,19 @@ function extractResponseText(responseBody) {
 
 function summaryInput(post) {
   return {
-    post_id: post.post_id || post.id,
-    subreddit: post.subreddit,
+    item_id: post.id,
+    source: post.source_name,
+    tab_hint: post.tab,
     title: post.title,
-    type: post.isSelf ? 'text' : 'link',
     domain: post.domain,
     score: post.score,
-    comments: post.numComments,
-    comments_per_hour: Number(post.commentsPerHour || 0).toFixed(2),
-    score_per_hour: Number(post.scorePerHour || 0).toFixed(2),
-    published: post.createdAt || post.published,
-    reddit_url: post.permalink,
-    external_url: post.externalUrl,
-    snippet: post.selftextExcerpt || post.snippet || ''
+    comment_count: post.comment_count,
+    comments_per_hour: Number(post.comments_per_hour || 0).toFixed(2),
+    score_per_hour: Number(post.score_per_hour || 0).toFixed(2),
+    watchlist_hits: post.watchlist_hits || [],
+    published_at: post.published_at,
+    url: post.canonical_url,
+    summary_snippet: post.raw_summary || ''
   };
 }
 
@@ -45,21 +45,21 @@ export async function analyzePosts(posts, config) {
         {
           role: 'system',
           content:
-            'Filter, cluster, and summarize Reddit post metadata for a personal daily digest. Use only the provided metadata. Be concise and do not invent facts.'
+            'Curate technical news metadata for a personal daily digest. Use only the provided metadata. Prefer technical relevance over hype. Be concise and do not invent facts.'
         },
         {
           role: 'user',
           content:
-            `Return JSON for these posts. Mark include=false for low-signal posts. ` +
-            `Use short cluster labels. Summaries should be 1 sentence per included post. ` +
-            `why_it_may_matter should contain 1-3 short bullets.\n\n` +
+            `Return JSON for these items. Mark skip=true for low-signal, duplicate, promotional, or irrelevant items. ` +
+            `Classify each item into one of: hw, reddit, dev, ai_agent. ` +
+            `Importance is 1-5. Summaries should be 1 sentence. why_it_matters should be one concise sentence.\n\n` +
             JSON.stringify(posts.map(summaryInput), null, 2)
         }
       ],
       text: {
         format: {
           type: 'json_schema',
-          name: 'reddit_digest_analysis',
+          name: 'daily_digest_curation',
           schema: {
             type: 'object',
             additionalProperties: false,
@@ -71,30 +71,26 @@ export async function analyzePosts(posts, config) {
                   type: 'object',
                   additionalProperties: false,
                   required: [
-                    'post_id',
-                    'include',
-                    'cluster',
+                    'item_id',
+                    'tab',
+                    'importance',
                     'summary',
-                    'why_it_may_matter',
-                    'research_questions'
+                    'why_it_matters',
+                    'entities',
+                    'tags',
+                    'skip',
+                    'skip_reason'
                   ],
                   properties: {
-                    post_id: { type: 'string' },
-                    include: { type: 'boolean' },
-                    cluster: { type: 'string' },
+                    item_id: { type: 'string' },
+                    tab: { type: 'string', enum: ['hw', 'reddit', 'dev', 'ai_agent'] },
+                    importance: { type: 'integer', minimum: 1, maximum: 5 },
                     summary: { type: 'string' },
-                    why_it_may_matter: {
-                      type: 'array',
-                      minItems: 0,
-                      maxItems: 3,
-                      items: { type: 'string' }
-                    },
-                    research_questions: {
-                      type: 'array',
-                      minItems: 0,
-                      maxItems: 3,
-                      items: { type: 'string' }
-                    }
+                    why_it_matters: { type: 'string' },
+                    entities: { type: 'array', items: { type: 'string' } },
+                    tags: { type: 'array', items: { type: 'string' } },
+                    skip: { type: 'boolean' },
+                    skip_reason: { type: 'string' }
                   }
                 }
               }
@@ -140,40 +136,47 @@ export async function summarizePosts(posts, config) {
     return { status: 'skipped_no_summary_budget', posts };
   }
 
-  const candidates = posts.slice(0, limit);
+  const candidateIndexes = posts
+    .slice(0, limit)
+    .map((post, index) => ({ post, index }))
+    .filter(({ post }) => !post.llm_summary && post.llm_importance === null);
+  const candidates = candidateIndexes.map(({ post }) => post);
+
+  if (!candidates.length) {
+    return { status: 'reused_cached_summaries', posts };
+  }
 
   try {
     const analysis = await analyzePosts(candidates, config);
-    const byId = new Map((analysis?.entries || []).map((entry) => [entry.post_id, entry]));
-    const analyzed = candidates
-      .map((post) => {
-        const entry = byId.get(post.post_id || post.id);
-        if (!entry) return { ...post, cluster: 'Unclustered' };
-        return {
+    const byId = new Map((analysis?.entries || []).map((entry) => [entry.item_id, entry]));
+    const nextPosts = [...posts];
+
+    for (const { post, index } of candidateIndexes) {
+        const entry = byId.get(post.id);
+        const next = !entry
+          ? { ...post }
+          : {
           ...post,
-          cluster: entry.cluster || 'Unclustered',
-          summary: {
-            summary: entry.summary || '_No summary generated._',
-            why_it_may_matter: entry.why_it_may_matter || [],
-            research_questions: entry.research_questions || []
-          },
-          llmIncluded: entry.include !== false
+          tab: entry.tab || post.tab,
+          llm_importance: entry.importance,
+          llm_summary: entry.summary || '',
+          llm_reason: entry.why_it_matters || '',
+          llm_tags: entry.tags || [],
+          llm_entities: entry.entities || [],
+          llm_skip: Boolean(entry.skip),
+          llm_skip_reason: entry.skip_reason || ''
         };
-      })
-      .filter((post) => post.llmIncluded !== false);
+      nextPosts[index] = next;
+    }
 
     return {
       status: 'completed',
-      posts: analyzed.concat(posts.slice(limit))
+      posts: nextPosts.filter((post) => post.llm_skip !== true)
     };
   } catch (error) {
     for (const post of candidates) {
-      post.cluster = 'Unclustered';
-      post.summary = {
-        summary: '_Summary failed._',
-        why_it_may_matter: [error.message],
-        research_questions: []
-      };
+      post.llm_summary = post.llm_summary || '_Summary failed._';
+      post.llm_reason = error.message;
     }
 
     return {

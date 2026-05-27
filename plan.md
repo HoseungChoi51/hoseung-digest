@@ -1,43 +1,50 @@
-# RSS-First Reddit Digest Migration Plan
+# Daily Tech Digest Implementation Plan
 
 ## Summary
 
-Move the project away from Reddit Data API/OAuth for development convenience. The app will use public subreddit RSS feeds as the primary ingestion source, keep a manual subreddit list in config, store locally seen post metadata, optionally enrich only new posts with public Reddit JSON, and generate Markdown digests from lightweight metadata.
+Expand the RSS-first Reddit digest into a broader technical digest while keeping the existing Node.js app. The app uses normalized source adapters for generic RSS, Reddit RSS, and Hacker News, stores lightweight item metadata locally, ranks and deduplicates before LLM curation, and writes Markdown digests grouped by tabs.
 
-## Key Changes
+## Implemented Direction
 
-- Make `config/reddit-digest.yml` the source of truth for the manually maintained subreddit list.
-- Poll `https://www.reddit.com/r/{subreddit}/new/.rss?limit=100` for each configured subreddit.
-- Store local post state under `.data/posts.json` with `post_id`, `subreddit`, `title`, `url`, `published`, `seen_at`, snippet, score/comment metadata, and derived velocity fields.
-- Remove Reddit OAuth from the default setup, UI, status endpoint, and README.
-- Add best-effort JSON enrichment for new posts only, using public Reddit JSON URLs to fetch `score` and `num_comments`.
-- Compute `comments_per_hour` and `score_per_hour` from post age and enrichment data.
-- Send only title/snippet/metadata to the LLM for filtering, clustering, and summaries.
-- Keep Markdown digests as the durable, human-readable knowledge-base source.
+- Keep the Node.js dependency-light architecture instead of rewriting to Python/FastAPI.
+- Use `config/sources.yml` for general RSS and Hacker News sources.
+- Keep `config/reddit-digest.yml` for subreddit lists, ranking, watchlist terms, digest limits, and runtime settings.
+- Store normalized items in `.data/items.json`.
+- Preserve migration compatibility with older `.data/posts.json`.
+- Generate Markdown digests under `content/digests/YYYY-MM-DD.md`.
 
-## Implementation Notes
+## Source Adapters
 
-- Add RSS parsing utilities with no external dependencies.
-- Add a local post store module for read/write/upsert/count operations.
-- Replace OAuth Reddit client code with RSS polling and optional JSON enrichment.
-- Update digest generation to poll first, persist seen posts, rank posts for the requested date, summarize selected posts, and write Markdown.
-- Add a `npm run poll` command for manual polling without generating a digest.
-- Replace the UI’s “Connect Reddit” action with status for configured subreddit count, stored post count, last poll time, and OpenAI availability.
+- `rss`: generic RSS/Atom feed parser with ETag and Last-Modified support.
+- `reddit_rss`: per-subreddit `/new/.rss?limit=100` ingestion with best-effort JSON enrichment for new posts.
+- `hackernews`: Hacker News Firebase API ingestion for top/new stories.
 
-## Test Plan
+All adapters emit a normalized item shape with source, tab, canonical URL, title, timestamps, snippet, score/comment metadata, and user feedback fields.
 
-- RSS parser tests using fixture XML.
-- Post ID extraction tests for Reddit links.
-- Post store upsert tests that preserve first `seen_at`.
-- Enrichment tests for success and failure behavior.
-- Ranking tests for comments-per-hour and date filtering.
-- Markdown tests confirming each entry keeps an `Original` link.
-- Server/status tests that do not require Reddit OAuth environment variables.
+## Ranking And Curation
 
-## Assumptions
+- Deduplicate by canonical URL, external ID, then normalized title.
+- Rank by source priority, recency, score, comment count, comments/hour, score/hour, watchlist boosts, negative keyword penalties, and stored LLM importance.
+- Send only compact metadata to the LLM after ranking.
+- Store LLM importance, summary, reason, entities, tags, and skip decisions back into the item store.
 
-- The first version uses a manual list of about ten subreddits.
-- RSS polling is the primary ingestion path.
-- JSON enrichment is best-effort and non-fatal.
-- No full linked article bodies or full comment threads are sent to the LLM.
-- Existing Data API/OAuth code can be removed from the default product path.
+## UI And Digest
+
+- Web UI has polling, generation, source filter, tab filter, tab shortcuts, raw Markdown view, save, and hide.
+- Markdown digest sections are `Top 10`, `HW News`, `Reddit`, `Dev`, and `AI / Agent`.
+- Entries keep source metadata, summary/snippet, why-it-matters, notes, follow-ups, and original links.
+
+## Tests
+
+- RSS and Reddit feed parsing.
+- Normalized item store upsert and feedback persistence.
+- Date filtering, deduplication, ranking, and watchlist boosts.
+- Markdown rendering/parsing with original links.
+- Syntax checks for server and CLI entrypoints.
+
+## Next Milestones
+
+- Add source health UI in Settings.
+- Add richer saved/hidden views.
+- Add OPML export/import for RSS sources.
+- Add SQLite once `.data/items.json` becomes too large or slow.

@@ -6,8 +6,8 @@ import path from 'node:path';
 import { loadConfig } from './lib/config.js';
 import { generateDigest } from './lib/digest.js';
 import { listDigests, readDigest } from './lib/markdown.js';
-import { pollSubreddits } from './lib/poller.js';
-import { postStoreStats, readPostStore } from './lib/post-store.js';
+import { pollSources } from './lib/poller.js';
+import { itemStoreStats, readItemStore, setItemFeedback, sourceHealthList } from './lib/item-store.js';
 import { PUBLIC_DIR } from './lib/paths.js';
 
 const MIME_TYPES = {
@@ -53,16 +53,16 @@ async function route(request, response) {
 
   try {
     if (request.method === 'GET' && url.pathname === '/api/status') {
-      const store = await readPostStore();
+      const store = await readItemStore();
       json(response, 200, {
-        reddit: {
-          source: 'rss',
-          configuredSubreddits: config.subreddits.include.length,
-          excludedSubreddits: config.subreddits.exclude.length,
+        sources: {
+          configured: config.sources.length,
+          tabs: [...new Set(config.sources.map((source) => source.tab))],
           enrichmentEnabled: config.enrichment.enabled
         },
         openai: { configured: Boolean(process.env.OPENAI_API_KEY) },
-        postStore: postStoreStats(store),
+        itemStore: itemStoreStats(store),
+        sourceHealth: sourceHealthList(store),
         config: {
           timezone: config.timezone,
           maxPostsPerDay: config.digest.max_posts_per_day,
@@ -73,17 +73,35 @@ async function route(request, response) {
     }
 
     if (request.method === 'POST' && url.pathname === '/api/poll') {
-      const result = await pollSubreddits(config);
+      const result = await pollSources(config);
       json(response, 200, {
-        subreddits: result.subreddits.length,
+        sources: result.sources.length,
         fetched: result.fetched,
         inserted: result.inserted,
         updated: result.updated,
         enriched: result.enriched,
         enrichmentErrors: result.enrichmentErrors,
+        notModified: result.notModified,
         errors: result.errors,
-        postStore: postStoreStats(result.store)
+        itemStore: itemStoreStats(result.store)
       });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname.startsWith('/api/items/')) {
+      const parts = url.pathname.split('/');
+      const id = decodeURIComponent(parts[3] || '');
+      const action = parts[4] || '';
+      if (!id || !['save', 'hide', 'unhide'].includes(action)) {
+        json(response, 404, { error: 'Unknown item action' });
+        return;
+      }
+      const patch = {};
+      if (action === 'save') patch.saved = true;
+      if (action === 'hide') patch.hidden = true;
+      if (action === 'unhide') patch.hidden = false;
+      const item = await setItemFeedback(id, patch);
+      json(response, 200, { item });
       return;
     }
 
@@ -121,5 +139,5 @@ const server = createServer((request, response) => {
 });
 
 server.listen(config.server.port, config.server.host, () => {
-  console.log(`Reddit Digest running at http://${config.server.host}:${config.server.port}`);
+  console.log(`Daily Tech Digest running at http://${config.server.host}:${config.server.port}`);
 });

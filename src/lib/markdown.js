@@ -36,49 +36,60 @@ function renderList(items) {
   return list.map((item) => `- ${item}`).join('\n');
 }
 
+const TAB_LABELS = {
+  top: 'Top 10',
+  hw: 'HW News',
+  reddit: 'Reddit',
+  dev: 'Dev',
+  ai_agent: 'AI / Agent'
+};
+
 function renderEntry(post) {
-  const originalUrl = post.permalink;
+  const originalUrl = post.original_url || post.canonical_url;
   const lines = [
-    `## r/${post.subreddit} - ${oneLine(post.title, '(untitled)')}`,
+    `### ${oneLine(post.title, '(untitled)')}`,
     '',
+    `- Item ID: ${post.id}`,
     `- Score: ${post.score ?? 0}`,
-    `- Comments: ${post.numComments ?? 0}`,
-    `- Comments/hour: ${Number(post.commentsPerHour || 0).toFixed(2)}`,
-    `- Score/hour: ${Number(post.scorePerHour || 0).toFixed(2)}`,
-    `- Created: ${post.createdAt}`,
-    `- Type: ${post.isSelf ? 'text' : 'link'}`,
+    `- Comments: ${post.comment_count ?? 0}`,
+    `- Comments/hour: ${Number(post.comments_per_hour || 0).toFixed(2)}`,
+    `- Score/hour: ${Number(post.score_per_hour || 0).toFixed(2)}`,
+    `- Hotness: ${Number(post.hotness || 0).toFixed(2)}`,
+    `- Published: ${post.published_at || post.fetched_at}`,
+    `- Source: ${oneLine(post.source_name, post.source_id)}`,
+    `- Tab: ${oneLine(post.tab, 'dev')}`,
     `- Domain: ${oneLine(post.domain, 'reddit.com')}`,
-    `- Author: ${post.author ? `u/${post.author}` : 'unknown'}`,
-    `- Cluster: ${oneLine(post.cluster, 'Unclustered')}`,
+    `- Author: ${post.author || 'unknown'}`,
+    `- Importance: ${post.llm_importance ?? ''}`,
     '- Tags: ',
     '',
-    '### Summary',
+    '#### Summary',
     '',
-    post.summary?.summary || '_No summary generated._',
+    post.llm_summary || post.raw_summary || '_No summary generated._',
     '',
-    '### Why It May Matter',
+    '#### Why It Matters',
     '',
-    renderList(post.summary?.why_it_may_matter || []),
+    post.llm_reason || '- ',
     '',
-    '### Research Questions',
+    '#### Entities',
     '',
-    renderList(post.summary?.research_questions || []),
+    renderList(post.llm_entities || []),
     '',
-    '### Notes',
+    '#### Notes',
     '',
     '<!-- Add personal notes here. -->',
     '',
-    '### Followups',
+    '#### Followups',
     '',
     '- [ ] ',
     '',
-    '### Links',
+    '#### Links',
     '',
-    `- Reddit: ${markdownLink(post.permalink)}`,
+    `- Open: ${markdownLink(post.canonical_url)}`,
   ];
 
-  if (post.externalUrl && post.externalUrl !== post.permalink) {
-    lines.push(`- External: ${markdownLink(post.externalUrl)}`);
+  if (post.adapter === 'reddit_rss' && post.original_url && post.original_url !== post.canonical_url) {
+    lines.push(`- Reddit: ${markdownLink(post.original_url)}`);
   }
 
   lines.push(`- Original: ${markdownLink(originalUrl)}`);
@@ -93,18 +104,39 @@ export function renderDigestMarkdown(digest) {
     generated_at: digest.generatedAt,
     timezone: digest.timezone,
     source: digest.sourceAccount || 'reddit-rss',
-    configured_subreddit_count: digest.configuredSubredditCount || 0,
+    configured_source_count: digest.configuredSourceCount || digest.configuredSubredditCount || 0,
     post_count: digest.posts.length,
     summary_status: digest.summaryStatus || 'skipped',
     generator: 'reddit-digest/0.1.0'
   };
 
+  const groups = digest.groups || {
+    top: digest.posts.slice(0, 10),
+    byTab: digest.posts.reduce((map, post) => {
+      if (!map.has(post.tab)) map.set(post.tab, []);
+      map.get(post.tab).push(post);
+      return map;
+    }, new Map())
+  };
+  const sections = [
+    ['top', groups.top || []],
+    ['hw', groups.byTab?.get?.('hw') || []],
+    ['reddit', groups.byTab?.get?.('reddit') || []],
+    ['dev', groups.byTab?.get?.('dev') || []],
+    ['ai_agent', groups.byTab?.get?.('ai_agent') || []]
+  ];
+
   return [
     frontmatter(fields),
     '',
-    `# Reddit Digest - ${digest.date}`,
+    `# Daily Tech Digest - ${digest.date}`,
     '',
-    ...digest.posts.map(renderEntry)
+    ...sections.flatMap(([tab, posts]) => [
+      `## ${TAB_LABELS[tab]}`,
+      '',
+      ...(posts.length ? posts.map(renderEntry) : ['_No items._']),
+      ''
+    ])
   ].join('\n').trimEnd() + '\n';
 }
 
@@ -139,11 +171,11 @@ function parseFrontmatter(markdown) {
 }
 
 function sectionBody(block, heading) {
-  const match = new RegExp(`^### ${heading}\\s*$`, 'm').exec(block);
+  const match = new RegExp(`^#### ${heading}\\s*$`, 'm').exec(block);
   if (!match) return '';
   const start = match.index + match[0].length;
   const rest = block.slice(start);
-  const next = /^### /m.exec(rest);
+  const next = /^#### /m.exec(rest);
   return (next ? rest.slice(0, next.index) : rest).trim();
 }
 
@@ -167,25 +199,38 @@ function parseLinks(block) {
 
 export function parseDigestMarkdown(markdown) {
   const [metadata, body] = parseFrontmatter(markdown);
-  const blocks = body.split(/^## /m).slice(1).map((block) => `## ${block}`);
+  const sections = body.split(/^## /m).slice(1);
+  const blocks = [];
 
-  const entries = blocks.map((block) => {
-    const firstLine = block.split(/\r?\n/, 1)[0].replace(/^## /, '').trim();
-    const titleMatch = /^r\/([^-]+) - (.*)$/.exec(firstLine);
+  for (const section of sections) {
+    const [sectionTitleLine, ...rest] = section.split(/\r?\n/);
+    const sectionTitle = sectionTitleLine.trim();
+    const entries = rest.join('\n').split(/^### /m).slice(1).map((block) => `### ${block}`);
+    for (const entry of entries) {
+      blocks.push({ sectionTitle, block: entry });
+    }
+  }
+
+  const entries = blocks.map(({ sectionTitle, block }) => {
+    const firstLine = block.split(/\r?\n/, 1)[0].replace(/^### /, '').trim();
     return {
       heading: firstLine,
-      subreddit: titleMatch ? titleMatch[1].trim() : '',
-      title: titleMatch ? titleMatch[2].trim() : firstLine,
+      section: sectionTitle,
+      id: metadataValue(block, 'Item ID'),
+      subreddit: metadataValue(block, 'Source').startsWith('r/')
+        ? metadataValue(block, 'Source').replace(/^r\//, '')
+        : '',
+      source: metadataValue(block, 'Source'),
+      tab: metadataValue(block, 'Tab'),
+      title: firstLine,
       summary: sectionBody(block, 'Summary'),
-      whyItMayMatter: sectionBody(block, 'Why It May Matter')
+      whyItMayMatter: [sectionBody(block, 'Why It Matters')].filter(Boolean),
+      researchQuestions: [],
+      entities: sectionBody(block, 'Entities')
         .split(/\r?\n/)
         .filter((line) => line.startsWith('- '))
         .map((line) => line.slice(2).trim()),
-      researchQuestions: sectionBody(block, 'Research Questions')
-        .split(/\r?\n/)
-        .filter((line) => line.startsWith('- '))
-        .map((line) => line.slice(2).trim()),
-      cluster: metadataValue(block, 'Cluster') || 'Unclustered',
+      cluster: metadataValue(block, 'Tab') || sectionTitle,
       notes: sectionBody(block, 'Notes'),
       followups: sectionBody(block, 'Followups'),
       links: parseLinks(block)

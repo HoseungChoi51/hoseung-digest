@@ -32,12 +32,57 @@ function allEntryBlocks(xml) {
   return [...xml.matchAll(/<entry(?:\s[^>]*)?>([\s\S]*?)<\/entry>/gi)].map((match) => match[1]);
 }
 
+function allItemBlocks(xml) {
+  return [...xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)].map((match) => match[1]);
+}
+
 function linkHref(block) {
   const alternate = /<link\b(?=[^>]*\brel=["']alternate["'])(?=[^>]*\bhref=["']([^"']+)["'])[^>]*>/i.exec(block);
   if (alternate) return decodeXmlEntities(alternate[1]);
 
   const first = /<link\b(?=[^>]*\bhref=["']([^"']+)["'])[^>]*>/i.exec(block);
   return first ? decodeXmlEntities(first[1]) : '';
+}
+
+function rssLink(block) {
+  const guidLink = tagContent(block, 'guid');
+  const link = tagContent(block, 'link');
+  return link || guidLink;
+}
+
+function authorFromBlock(block) {
+  const authorBlock = tagContent(block, 'author');
+  const atomName = tagContent(authorBlock, 'name');
+  return (
+    atomName ||
+    tagContent(block, 'dc:creator') ||
+    tagContent(block, 'creator') ||
+    tagContent(block, 'author')
+  ).replace(/^\/?u\//i, '');
+}
+
+export function parseFeedEntries(xml, fetchedAt = new Date().toISOString()) {
+  const atomEntries = allEntryBlocks(xml).map((block) => ({
+    external_id: tagContent(block, 'id') || linkHref(block),
+    title: tagContent(block, 'title') || '(untitled)',
+    url: linkHref(block),
+    published_at: tagContent(block, 'published') || tagContent(block, 'updated') || fetchedAt,
+    updated_at: tagContent(block, 'updated') || '',
+    author: authorFromBlock(block),
+    raw_summary: stripHtml(tagContent(block, 'content') || tagContent(block, 'summary')).slice(0, 900)
+  }));
+
+  const rssItems = allItemBlocks(xml).map((block) => ({
+    external_id: tagContent(block, 'guid') || rssLink(block),
+    title: tagContent(block, 'title') || '(untitled)',
+    url: rssLink(block),
+    published_at: tagContent(block, 'pubDate') || tagContent(block, 'published') || fetchedAt,
+    updated_at: tagContent(block, 'updated') || '',
+    author: authorFromBlock(block),
+    raw_summary: stripHtml(tagContent(block, 'description') || tagContent(block, 'summary')).slice(0, 900)
+  }));
+
+  return [...atomEntries, ...rssItems].filter((entry) => entry.url || entry.external_id);
 }
 
 export function extractPostId(value = '') {
@@ -52,24 +97,21 @@ export function extractPostId(value = '') {
 }
 
 export function parseRedditRss(xml, subreddit, seenAt = new Date().toISOString()) {
-  return allEntryBlocks(xml)
-    .map((block) => {
-      const idSource = tagContent(block, 'id');
-      const url = linkHref(block);
-      const postId = extractPostId(idSource) || extractPostId(url);
-      const rawContent = tagContent(block, 'content') || tagContent(block, 'summary');
+  return parseFeedEntries(xml, seenAt)
+    .map((entry) => {
+      const postId = extractPostId(entry.external_id) || extractPostId(entry.url);
 
-      if (!postId || !url) return null;
+      if (!postId || !entry.url) return null;
 
       return {
         post_id: postId,
         subreddit,
-        title: tagContent(block, 'title') || '(untitled)',
-        url,
-        published: tagContent(block, 'published') || tagContent(block, 'updated') || seenAt,
-        updated: tagContent(block, 'updated') || '',
-        author: tagContent(tagContent(block, 'author'), 'name').replace(/^\/?u\//i, ''),
-        snippet: stripHtml(rawContent).slice(0, 700),
+        title: entry.title || '(untitled)',
+        url: entry.url,
+        published: entry.published_at || entry.updated_at || seenAt,
+        updated: entry.updated_at || '',
+        author: entry.author || '',
+        snippet: entry.raw_summary || '',
         seen_at: seenAt,
         source: 'rss'
       };

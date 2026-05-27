@@ -1,0 +1,90 @@
+sources:
+  phoronix_all:
+    name: "Phoronix"
+    tab: "hw"
+    adapter: "rss"
+    url: "https://www.phoronix.com/phoronix-rss.php"
+    priority: 0.95
+    poll_minutes: 30
+    enabled: true
+
+  hpcwire:
+    name: "HPCwire"
+    tab: "hw"
+    adapter: "rss"
+    url: "https://www.hpcwire.com/feed/"
+    priority: 0.85
+    poll_minutes: 60
+    enabled: true
+
+  next_platform:
+    name: "The Next Platform"
+    tab: "hw"
+    adapter: "rss"
+    url: "https://www.nextplatform.com/feed/"
+    priority: 0.90
+    poll_minutes: 60
+    enabled: true
+
+  toms_hardware:
+    name: "Tom's Hardware"
+    tab: "hw"
+    adapter: "rss"
+    url: "https://www.tomshardware.com/feeds.xml"
+    priority: 0.75
+    poll_minutes: 60
+    enabled: true
+
+  hackernews_top:
+    name: "Hacker News Top"
+    tab: "dev"
+    adapter: "hackernews"
+    feed: "topstories"
+    priority: 0.90
+    poll_minutes: 20
+    enabled: true
+
+  hackernews_new:
+    name: "Hacker News New"
+    tab: "dev"
+    adapter: "hackernews"
+    feed: "newstories"
+    priority: 0.65
+    poll_minutes: 20
+    enabled: true
+
+  techcrunch:
+    name: "TechCrunch"
+    tab: "ai_agent"
+    adapter: "rss"
+    url: "https://techcrunch.com/feed/"
+    priority: 0.65
+    poll_minutes: 60
+    enabled: true
+
+  wired_ai:
+    name: "WIRED AI"
+    tab: "ai_agent"
+    adapter: "rss"
+    url: "https://www.wired.com/feed/tag/ai/latest/rss"
+    priority: 0.75
+    poll_minutes: 60
+    enabled: true
+
+  zdnet_ai:
+    name: "ZDNet AI"
+    tab: "ai_agent"
+    adapter: "rss"
+    url: "https://www.zdnet.com/topic/artificial-intelligence/rss.xml"
+    priority: 0.65
+    poll_minutes: 60
+    enabled: true
+
+  the_verge:
+    name: "The Verge"
+    tab: "ai_agent"
+    adapter: "rss"
+    url: "https://www.theverge.com/rss/index.xml"
+    priority: 0.65
+    poll_minutes: 60
+    enabled: true
