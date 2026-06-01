@@ -287,6 +287,119 @@ button.small {
   background: #f8faf9;
 }
 
+.source-sticker {
+  --source-bg: #eef8f6;
+  --source-border: #9bd0c8;
+  --source-text: #115e59;
+  --source-mark-bg: #0f766e;
+  --source-mark-text: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 26px;
+  overflow: hidden;
+  border: 1px solid var(--source-border);
+  border-radius: 6px;
+  background: var(--source-bg);
+  color: var(--source-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.source-mark {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  padding: 0 6px;
+  background: var(--source-mark-bg);
+  color: var(--source-mark-text);
+  letter-spacing: 0;
+}
+
+.source-name {
+  overflow: hidden;
+  padding: 6px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-kind-reddit .source-mark {
+  text-transform: lowercase;
+}
+
+.source-tone-0 {
+  --source-bg: #eef8f6;
+  --source-border: #8ccdc4;
+  --source-text: #115e59;
+  --source-mark-bg: #0f766e;
+}
+
+.source-tone-1 {
+  --source-bg: #eff6ff;
+  --source-border: #93c5fd;
+  --source-text: #1d4ed8;
+  --source-mark-bg: #2563eb;
+}
+
+.source-tone-2 {
+  --source-bg: #f5f3ff;
+  --source-border: #c4b5fd;
+  --source-text: #6d28d9;
+  --source-mark-bg: #7c3aed;
+}
+
+.source-tone-3 {
+  --source-bg: #fef3c7;
+  --source-border: #f59e0b;
+  --source-text: #92400e;
+  --source-mark-bg: #d97706;
+}
+
+.source-tone-4 {
+  --source-bg: #ecfdf5;
+  --source-border: #86efac;
+  --source-text: #166534;
+  --source-mark-bg: #16a34a;
+}
+
+.source-tone-5 {
+  --source-bg: #fff1f2;
+  --source-border: #fda4af;
+  --source-text: #be123c;
+  --source-mark-bg: #e11d48;
+}
+
+.source-tone-6 {
+  --source-bg: #f0f9ff;
+  --source-border: #7dd3fc;
+  --source-text: #0369a1;
+  --source-mark-bg: #0284c7;
+}
+
+.source-tone-7 {
+  --source-bg: #f7fee7;
+  --source-border: #bef264;
+  --source-text: #4d7c0f;
+  --source-mark-bg: #65a30d;
+}
+
+.source-tone-8 {
+  --source-bg: #faf5ff;
+  --source-border: #d8b4fe;
+  --source-text: #86198f;
+  --source-mark-bg: #c026d3;
+}
+
+.source-tone-9 {
+  --source-bg: #f1f5f9;
+  --source-border: #94a3b8;
+  --source-text: #334155;
+  --source-mark-bg: #475569;
+}
+
 .section-title {
   margin-top: 14px;
   margin-bottom: 6px;

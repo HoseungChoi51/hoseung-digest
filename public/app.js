@@ -151,16 +151,53 @@ function entrySearchText(entry) {
     .toLowerCase();
 }
 
+function textHash(value) {
+  let hash = 0;
+  const text = String(value || '');
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function sourceKind(source) {
+  const normalized = String(source || '').toLowerCase();
+  if (normalized.startsWith('r/')) return 'reddit';
+  if (normalized.includes('hacker news')) return 'hackernews';
+  return 'feed';
+}
+
+function sourceInitials(source) {
+  const kind = sourceKind(source);
+  if (kind === 'reddit') return 'r/';
+  if (kind === 'hackernews') return 'HN';
+
+  const words = String(source || 'Source')
+    .replace(/^the\s+/i, '')
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean);
+  const initials = words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
+  return initials || 'S';
+}
+
+function sourceSticker(entry) {
+  const source = entry.source || 'Unknown source';
+  const kind = sourceKind(source);
+  const tone = textHash(source) % 10;
+  return `<span class="source-sticker source-kind-${kind} source-tone-${tone}" title="${escapeHtml(source)}"><span class="source-mark">${escapeHtml(
+    sourceInitials(source)
+  )}</span><span class="source-name">${escapeHtml(source)}</span></span>`;
+}
+
 function entryBadges(entry) {
   const badges = [
-    entry.source || 'Unknown source',
     entry.tab || 'dev',
     entry.section || entry.domain || '',
     entry.saved ? 'Saved' : '',
     entry.hidden ? 'Hidden' : ''
   ].filter(Boolean);
 
-  return badges.map((badge) => `<span class="pill">${escapeHtml(badge)}</span>`).join('');
+  return [sourceSticker(entry), ...badges.map((badge) => `<span class="pill">${escapeHtml(badge)}</span>`)].join('');
 }
 
 function entryLinks(entry) {
