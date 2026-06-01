@@ -3,12 +3,41 @@ import { loadConfig } from './config.js';
 import { formatDateTime, todayInTimeZone } from './dates.js';
 import { pollSources } from './poller.js';
 import { listStoredItems, readItemStore, upsertItems } from './item-store.js';
-import { dedupeItems, filterItemsForDate, groupDigestItems, rankItems } from './ranker.js';
+import {
+  dedupeItems,
+  filterItemsBySourceConfig,
+  filterItemsForDate,
+  groupDigestItems,
+  rankItems
+} from './ranker.js';
+import { readPreferenceStore } from './preference-store.js';
 import { summarizePosts } from './summarizer.js';
 import { writeDigestMarkdown } from './markdown.js';
 
 function lowerSet(items) {
   return new Set((items || []).map((item) => String(item).toLowerCase()));
+}
+
+function hasPositivePreference(item, preferenceStore) {
+  return ['must_read', 'useful'].includes(preferenceStore.items?.[item.id]?.label);
+}
+
+function retainPositivePreferences(items, maxItems, preferenceStore) {
+  const retained = [];
+  const regular = [];
+  const seen = new Set();
+
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    if (hasPositivePreference(item, preferenceStore)) {
+      retained.push(item);
+    } else {
+      regular.push(item);
+    }
+  }
+
+  return [...retained, ...regular.slice(0, Math.max(0, maxItems - retained.length))];
 }
 
 export function applySubredditFilters(subreddits, config) {
@@ -34,14 +63,18 @@ export async function generateDigest(options = {}) {
   }
 
   let store = pollResult?.store || (await readItemStore());
+  const preferenceStore = await readPreferenceStore();
   if (!config.sources.length) {
     throw new Error('No sources configured. Add source records to config/sources.yml.');
   }
 
   const selectedItems = rankItems(
-    dedupeItems(filterItemsForDate(listStoredItems(store), date, config.timezone)),
+    dedupeItems(
+      filterItemsBySourceConfig(filterItemsForDate(listStoredItems(store), date, config.timezone), config)
+    ),
     config,
-    date
+    date,
+    preferenceStore
   );
 
   const summarized = await summarizePosts(selectedItems.slice(0, config.summary.max_posts), config, {
@@ -53,10 +86,14 @@ export async function generateDigest(options = {}) {
   }
 
   const summarizedById = new Map(summarized.posts.map((item) => [item.id, item]));
-  const finalItems = selectedItems
+  const visibleItems = selectedItems
     .map((item) => summarizedById.get(item.id) || item)
-    .filter((item) => item.llm_skip !== true)
-    .slice(0, Math.max(config.digest.max_posts_per_day, config.digest.top_items));
+    .filter((item) => item.llm_skip !== true || hasPositivePreference(item, preferenceStore));
+  const finalItems = retainPositivePreferences(
+    visibleItems,
+    Math.max(config.digest.max_posts_per_day, config.digest.top_items),
+    preferenceStore
+  );
   const groups = groupDigestItems(finalItems, config);
   const digest = {
     date,

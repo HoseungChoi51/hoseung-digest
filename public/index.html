@@ -16,11 +16,25 @@
         <button id="pollButton" class="secondary" type="button">Poll RSS</button>
         <button id="generateButton" type="button">Generate Today</button>
         <button id="refreshSummariesButton" class="secondary" type="button">Refresh Summaries</button>
+        <button id="stopServerButton" class="secondary danger-button" type="button">Stop Server</button>
       </div>
     </header>
 
     <main class="layout">
       <aside class="sidebar">
+        <nav class="view-nav" aria-label="Primary views">
+          <button id="digestViewButton" class="view-button active" data-mode="digest" type="button">Digest</button>
+          <button id="libraryViewButton" class="view-button" data-mode="library" type="button">Library</button>
+        </nav>
+        <div id="libraryControls" class="filter-block" hidden>
+          <label for="libraryScope">Library</label>
+          <select id="libraryScope">
+            <option value="all">All items</option>
+            <option value="saved">Saved</option>
+            <option value="hidden">Hidden</option>
+            <option value="preferred">Preferred</option>
+          </select>
+        </div>
         <div class="filter-block">
           <label for="searchInput">Search</label>
           <input id="searchInput" type="search" placeholder="Search local digests">
@@ -59,10 +73,11 @@
           Generate a digest or select one from the left.
         </div>
         <div id="entries" class="entries"></div>
+        <button id="loadMoreButton" class="secondary load-more" type="button" hidden>Load More</button>
         <pre id="rawMarkdown" class="raw-markdown" hidden></pre>
       </section>
     </main>
 
-    <script src="/app.js" type="module"></script>
+    <script src="/app.js?v=library-actions-2" type="module"></script>
   </body>
 </html>

@@ -30,7 +30,7 @@ All adapters emit a normalized item shape with source, tab, canonical URL, title
 
 ## UI And Digest
 
-- Web UI has polling, generation, source filter, tab filter, tab shortcuts, raw Markdown view, save, and hide.
+- Web UI has polling, generation, source filter, tab filter, tab shortcuts, raw Markdown view, save/hide, preference labels, and a historical Library view for stored, saved, hidden, and preferred items.
 - Markdown digest sections are `Top 10`, `HW News`, `Reddit`, `Dev`, and `AI / Agent`.
 - Entries keep source metadata, summary/snippet, why-it-matters, notes, follow-ups, and original links.
 
@@ -45,6 +45,6 @@ All adapters emit a normalized item shape with source, tab, canonical URL, title
 ## Next Milestones
 
 - Add source health UI in Settings.
-- Add richer saved/hidden views.
+- Add source-level feedback and preference summaries.
 - Add OPML export/import for RSS sources.
 - Add SQLite once `.data/items.json` becomes too large or slow.

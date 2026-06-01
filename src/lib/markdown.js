@@ -30,6 +30,13 @@ function markdownLink(url) {
   return url ? `<${url}>` : '';
 }
 
+function hackerNewsUrl(post) {
+  if (post.adapter !== 'hackernews') return '';
+  if (post.discussion_url) return post.discussion_url;
+  if (post.external_id) return `https://news.ycombinator.com/item?id=${post.external_id}`;
+  return '';
+}
+
 function renderList(items) {
   const list = (items || []).map(oneLine).filter(Boolean);
   if (!list.length) return '- ';
@@ -39,6 +46,13 @@ function renderList(items) {
 function compactTags(items) {
   const list = (items || []).map(oneLine).filter(Boolean);
   return list.length ? list.join(', ') : '';
+}
+
+function splitTags(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 const TAB_LABELS = {
@@ -51,6 +65,8 @@ const TAB_LABELS = {
 
 function renderEntry(post) {
   const originalUrl = post.original_url || post.canonical_url;
+  const hnUrl = hackerNewsUrl(post);
+  const openUrl = hnUrl || post.canonical_url;
   const lines = [
     `### ${oneLine(post.title, '(untitled)')}`,
     '',
@@ -94,8 +110,12 @@ function renderEntry(post) {
     '',
     '#### Links',
     '',
-    `- Open: ${markdownLink(post.canonical_url)}`,
+    `- Open: ${markdownLink(openUrl)}`,
   ];
+
+  if (post.adapter === 'hackernews' && originalUrl && originalUrl !== openUrl) {
+    lines.push(`- Article: ${markdownLink(originalUrl)}`);
+  }
 
   if (post.adapter === 'reddit_rss' && post.original_url && post.original_url !== post.canonical_url) {
     lines.push(`- Reddit: ${markdownLink(post.original_url)}`);
@@ -206,6 +226,42 @@ function parseLinks(block) {
   return links;
 }
 
+function dedupeEntryKey(entry) {
+  if (entry.id) return `id:${entry.id}`;
+  if (entry.links.original) return `original:${entry.links.original}`;
+  if (entry.links.open) return `open:${entry.links.open}`;
+  if (entry.title) return `title:${entry.title.toLowerCase()}`;
+  return '';
+}
+
+function dedupeParsedEntries(entries) {
+  const seen = new Map();
+  const unique = [];
+
+  for (const entry of entries) {
+    const key = dedupeEntryKey(entry);
+    if (!key) {
+      unique.push(entry);
+      continue;
+    }
+
+    const existing = seen.get(key);
+    if (existing) {
+      existing.sections = [...new Set([...(existing.sections || [existing.section]), entry.section].filter(Boolean))];
+      continue;
+    }
+
+    const saved = {
+      ...entry,
+      sections: [entry.section].filter(Boolean)
+    };
+    seen.set(key, saved);
+    unique.push(saved);
+  }
+
+  return unique;
+}
+
 export function parseDigestMarkdown(markdown) {
   const [metadata, body] = parseFrontmatter(markdown);
   const sections = body.split(/^## /m).slice(1);
@@ -231,6 +287,9 @@ export function parseDigestMarkdown(markdown) {
         : '',
       source: metadataValue(block, 'Source'),
       tab: metadataValue(block, 'Tab'),
+      domain: metadataValue(block, 'Domain'),
+      importance: Number(metadataValue(block, 'Importance') || 0),
+      tags: splitTags(metadataValue(block, 'Tags')),
       title: firstLine,
       summary: sectionBody(block, 'LLM Summary'),
       whyItMayMatter: [sectionBody(block, 'Why It Matters')].filter(Boolean),
@@ -247,7 +306,7 @@ export function parseDigestMarkdown(markdown) {
     };
   });
 
-  return { metadata, entries, markdown };
+  return { metadata, entries: dedupeParsedEntries(entries), markdown };
 }
 
 export async function readDigest(date, digestDir = DIGEST_DIR) {

@@ -2,7 +2,7 @@
 
 A local, Markdown-first web app for curating technical news from RSS feeds, selected subreddits, and Hacker News into a daily digest.
 
-The durable source of truth is `content/digests/YYYY-MM-DD.md`. Runtime state such as normalized items, source health, saved/hidden feedback, and temporary fetch metadata lives under `.data/`.
+The durable source of truth is `content/digests/YYYY-MM-DD.md`. Runtime state such as normalized items, source health, saved/hidden feedback, preference labels, and temporary fetch metadata lives under `.data/`.
 
 ## Requirements
 
@@ -74,7 +74,17 @@ Run the local server:
 npm run dev
 ```
 
-Open <http://127.0.0.1:3847>. The UI supports source filters, tab filters, rendered/raw Markdown, polling, digest generation, LLM summary refresh, and simple save/hide feedback.
+Open <http://127.0.0.1:3847>. The UI supports source filters, tab filters, rendered/raw Markdown, polling, digest generation, LLM summary refresh, save/hide feedback, preference labels, and a Library view for managing historical stored items.
+
+Use the `Library` tab to browse everything stored in `.data/items.json`, including saved items, hidden items, and positive preferences. `Load More` keeps appending older stored items without losing action buttons on appended entries.
+
+Preference labels are persistent and affect future ranking:
+
+- `Must read` and `Useful` are automatically saved and kept visible.
+- `Not for me` is automatically hidden.
+- `Preferred` in the Library means positive preferences only: `Must read` and `Useful`.
+
+The top bar includes `Stop Server`, which shuts down the local Node server from the browser. Restart it later with `npm run dev`.
 
 ## Content Format
 

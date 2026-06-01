@@ -88,6 +88,12 @@ function normalizeArray(value) {
   return [String(value)];
 }
 
+function optionalNumber(value) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
 export function loadConfig(configPath = CONFIG_PATH) {
   loadEnvFiles();
 
@@ -158,6 +164,9 @@ export function normalizeSources(sourceMap, config) {
 
   for (const source of [...explicit, ...redditSources(config)]) {
     if (!source?.id) continue;
+    const minScore = optionalNumber(source.min_score);
+    const minComments = optionalNumber(source.min_comments);
+
     merged.set(source.id, {
       id: String(source.id),
       name: String(source.name || source.id),
@@ -168,7 +177,11 @@ export function normalizeSources(sourceMap, config) {
       subreddit: source.subreddit ? String(source.subreddit) : '',
       priority: Number(source.priority ?? 0.5),
       poll_minutes: Number(source.poll_minutes || 60),
-      enabled: normalizeBoolean(source.enabled, true)
+      enabled: normalizeBoolean(source.enabled, true),
+      include_terms: normalizeArray(source.include_terms),
+      exclude_terms: normalizeArray(source.exclude_terms),
+      ...(minScore !== undefined ? { min_score: minScore } : {}),
+      ...(minComments !== undefined ? { min_comments: minComments } : {})
     });
   }
 

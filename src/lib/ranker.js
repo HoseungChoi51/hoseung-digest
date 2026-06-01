@@ -1,5 +1,7 @@
 import { dateRangeForLocalDay } from './dates.js';
 import { normalizeTitle } from './normalizer.js';
+import { preferenceBoostForItem } from './preference-store.js';
+import { passesSourceFilters } from './relevance.js';
 
 const TAB_HALF_LIFE_HOURS = {
   hw: 36,
@@ -54,15 +56,17 @@ export function dedupeItems(items) {
   const result = [];
 
   for (const item of items) {
-    const canonicalUrl = item.canonical_url || '';
+    const urls = [item.canonical_url, item.original_url]
+      .map((url) => String(url || '').trim())
+      .filter(Boolean);
     const externalKey = `${item.source_id}:${item.external_id || ''}`;
     const titleKey = normalizeTitle(item.title);
 
-    if (canonicalUrl && seenUrls.has(canonicalUrl)) continue;
+    if (urls.some((url) => seenUrls.has(url))) continue;
     if (item.external_id && seenExternal.has(externalKey)) continue;
     if (titleKey && seenTitles.has(titleKey)) continue;
 
-    if (canonicalUrl) seenUrls.add(canonicalUrl);
+    for (const url of urls) seenUrls.add(url);
     if (item.external_id) seenExternal.add(externalKey);
     if (titleKey) seenTitles.add(titleKey);
     result.push(item);
@@ -71,12 +75,25 @@ export function dedupeItems(items) {
   return result;
 }
 
-export function rankItems(items, config, dateString) {
+function sourceForItem(item, config) {
+  if (!Array.isArray(config.sources) || !config.sources.length) return null;
+  return config.sources.find((source) => source.id === item.source_id) || false;
+}
+
+export function filterItemsBySourceConfig(items, config) {
+  return items.filter((item) => {
+    const source = sourceForItem(item, config);
+    if (source === false) return false;
+    return source ? passesSourceFilters(item, source, config) : true;
+  });
+}
+
+export function rankItems(items, config, dateString, preferenceStore = null) {
   const { end } = dateRangeForLocalDay(dateString, config.timezone);
   const positiveTerms = lowerTerms(config.watchlist.high_priority);
   const negativeTerms = lowerTerms(config.watchlist.negative_or_low_priority);
 
-  return items
+  return filterItemsBySourceConfig(items, config)
     .map((item) => {
       const metrics = deriveItemMetrics(item, end);
       const halfLife = TAB_HALF_LIFE_HOURS[metrics.tab] || 24;
@@ -88,6 +105,9 @@ export function rankItems(items, config, dateString) {
       const watchlistHits = termHits(metrics, positiveTerms);
       const negativeHits = termHits(metrics, negativeTerms);
       const llmBoost = Number(metrics.llm_importance || 0) * 25;
+      const preferenceBoost = preferenceStore
+        ? preferenceBoostForItem(metrics, preferenceStore)
+        : { score: 0, reasons: [] };
       const hotness =
         Number(metrics.source_priority || 0.5) * Number(config.ranking.source_priority_weight || 0) +
         metrics.score * Number(config.ranking.score_weight || 0) +
@@ -98,13 +118,16 @@ export function rankItems(items, config, dateString) {
         engagement * 10 +
         watchlistHits.length * Number(config.ranking.watchlist_boost || 0) -
         negativeHits.length * Number(config.ranking.negative_keyword_penalty || 0) +
-        llmBoost;
+        llmBoost +
+        preferenceBoost.score;
 
       return {
         ...metrics,
         hotness,
         watchlist_hits: watchlistHits,
-        negative_hits: negativeHits
+        negative_hits: negativeHits,
+        preference_boost: preferenceBoost.score,
+        preference_reasons: preferenceBoost.reasons
       };
     })
     .sort((a, b) => b.hotness - a.hotness);

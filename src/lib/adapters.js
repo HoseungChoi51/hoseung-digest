@@ -1,4 +1,5 @@
-import { createItem } from './normalizer.js';
+import { createItem, urlDomain } from './normalizer.js';
+import { passesSourceFilters } from './relevance.js';
 import { extractPostId, fetchSubredditRss, parseFeedEntries, subredditFeedUrl } from './rss.js';
 
 export function sourceUrl(source, config) {
@@ -118,24 +119,29 @@ export async function fetchHackerNewsSource(source, config, options = {}) {
     const item = await response.json();
     if (!item || item.deleted || item.dead || item.type !== 'story') continue;
 
-    items.push(
-      createItem(
-        source,
-        {
-          external_id: String(item.id),
-          title: item.title,
-          canonical_url: item.url || hnItemUrl(item.id),
-          original_url: item.url || hnItemUrl(item.id),
-          author: item.by || '',
-          published_at: item.time ? new Date(item.time * 1000).toISOString() : fetchedAt,
-          fetched_at: fetchedAt,
-          raw_summary: '',
-          score: item.score || 0,
-          comment_count: item.descendants || 0
-        },
-        fetchedAt
-      )
+    const discussionUrl = hnItemUrl(item.id);
+    const normalized = createItem(
+      source,
+      {
+        external_id: String(item.id),
+        title: item.title,
+        canonical_url: discussionUrl,
+        original_url: item.url || discussionUrl,
+        discussion_url: discussionUrl,
+        author: item.by || '',
+        published_at: item.time ? new Date(item.time * 1000).toISOString() : fetchedAt,
+        fetched_at: fetchedAt,
+        raw_summary: '',
+        score: item.score || 0,
+        comment_count: item.descendants || 0,
+        domain: item.url ? urlDomain(item.url) : 'news.ycombinator.com'
+      },
+      fetchedAt
     );
+
+    if (passesSourceFilters(normalized, source, config)) {
+      items.push(normalized);
+    }
   }
 
   return { items, notModified: false, etag: '', lastModified: '' };

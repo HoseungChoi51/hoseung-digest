@@ -105,6 +105,15 @@ button.secondary:hover,
   background: #eef8f6;
 }
 
+button.danger-button {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+button.danger-button:hover {
+  background: #fff1f2;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.7;
@@ -151,6 +160,26 @@ select {
   display: grid;
   gap: 8px;
   margin-top: 20px;
+}
+
+.view-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.view-button {
+  border-color: var(--border);
+  background: #ffffff;
+  color: var(--text);
+  text-align: center;
+}
+
+.view-button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .tab-nav {
@@ -228,6 +257,20 @@ button.small {
   display: none;
 }
 
+.entry-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entry-date {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .entry-meta {
   display: flex;
   flex-wrap: wrap;
@@ -265,16 +308,48 @@ button.small {
   margin-top: 14px;
 }
 
-.entry-actions {
+.entry-actions,
+.preference-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
 }
 
+.preference-actions {
+  align-items: center;
+  margin-top: 8px;
+}
+
+.preference-button.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.preference-button[data-preference="not_for_me"].active {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.preference-state {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .links a {
   color: var(--accent-dark);
   font-weight: 700;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.load-more {
+  display: block;
+  margin: 16px auto 0;
 }
 
 .raw-markdown {
@@ -292,7 +367,8 @@ button.small {
 
 @media (max-width: 760px) {
   .topbar,
-  .reader-header {
+  .reader-header,
+  .entry-heading {
     align-items: stretch;
     flex-direction: column;
   }

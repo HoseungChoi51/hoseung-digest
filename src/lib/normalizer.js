@@ -86,6 +86,7 @@ export function createItem(source, raw, fetchedAt = new Date().toISOString()) {
     subreddit: raw.subreddit || source.subreddit || '',
     reddit_post_id: raw.reddit_post_id || raw.post_id || '',
     domain: raw.domain || urlDomain(canonicalUrl),
-    original_url: raw.original_url || raw.url || canonicalUrl
+    original_url: raw.original_url || raw.url || canonicalUrl,
+    discussion_url: raw.discussion_url || raw.comments_url || ''
   };
 }

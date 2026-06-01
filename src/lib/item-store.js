@@ -86,6 +86,125 @@ export function listStoredItems(store) {
   return Object.values(store.items || {});
 }
 
+function itemTimestamp(item) {
+  return Date.parse(item.published_at || item.first_seen_at || item.fetched_at || item.last_seen_at || '') || 0;
+}
+
+function compact(value, fallback = '') {
+  return String(value || fallback).replace(/\s+/g, ' ').trim();
+}
+
+function normalizeList(value) {
+  return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : [];
+}
+
+function itemLinks(item) {
+  const links = {};
+  const originalUrl = item.original_url || item.canonical_url || '';
+  const openUrl = item.adapter === 'hackernews' && item.discussion_url
+    ? item.discussion_url
+    : item.canonical_url || originalUrl;
+
+  if (openUrl) links.open = openUrl;
+  if (originalUrl && originalUrl !== openUrl) links.original = originalUrl;
+  if (item.discussion_url && item.discussion_url !== openUrl) links.discussion = item.discussion_url;
+
+  return links;
+}
+
+export function libraryEntryForItem(item, preference = null) {
+  return {
+    id: item.id,
+    title: compact(item.title, '(untitled)'),
+    source: compact(item.source_name, item.source_id),
+    sourceId: item.source_id || '',
+    tab: compact(item.tab, 'dev'),
+    section: compact(item.domain),
+    domain: compact(item.domain),
+    summary: compact(item.llm_summary || item.raw_summary, 'No summary generated.'),
+    whyItMayMatter: compact(item.llm_reason) ? [compact(item.llm_reason)] : [],
+    entities: normalizeList(item.llm_entities),
+    tags: normalizeList(item.llm_tags),
+    links: itemLinks(item),
+    saved: Boolean(item.saved),
+    hidden: Boolean(item.hidden),
+    preference,
+    score: item.score ?? null,
+    commentCount: item.comment_count ?? null,
+    hotness: item.hotness ?? null,
+    importance: item.llm_importance ?? null,
+    publishedAt: item.published_at || null,
+    firstSeenAt: item.first_seen_at || null,
+    lastSeenAt: item.last_seen_at || null,
+    fetchedAt: item.fetched_at || null
+  };
+}
+
+function itemSearchText(item, preference = null) {
+  return [
+    item.title,
+    item.source_name,
+    item.source_id,
+    item.tab,
+    item.domain,
+    item.raw_summary,
+    item.llm_summary,
+    item.llm_reason,
+    ...(item.llm_tags || []),
+    ...(item.llm_entities || []),
+    preference?.label,
+    preference?.note
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function itemMatchesLibraryView(item, preference, view) {
+  if (view === 'saved') return Boolean(item.saved);
+  if (view === 'hidden') return Boolean(item.hidden);
+  if (view === 'preferred') return ['must_read', 'useful'].includes(preference?.label);
+  return true;
+}
+
+function boundedNumber(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(number, max));
+}
+
+export function queryStoredItems(store, options = {}) {
+  const preferences = options.preferences || {};
+  const view = options.view || 'all';
+  const query = String(options.query || '').trim().toLowerCase();
+  const source = String(options.source || '').trim();
+  const tab = String(options.tab || '').trim();
+  const limit = boundedNumber(options.limit ?? 100, 100, 1, 500);
+  const offset = boundedNumber(options.offset ?? 0, 0, 0, Number.MAX_SAFE_INTEGER);
+  const allItems = listStoredItems(store);
+  const sources = [...new Set(allItems.map((item) => item.source_name || item.source_id).filter(Boolean))].sort();
+  const tabs = [...new Set(allItems.map((item) => item.tab).filter(Boolean))].sort();
+  const filtered = allItems
+    .filter((item) => {
+      const preference = preferences[item.id] || null;
+      if (!itemMatchesLibraryView(item, preference, view)) return false;
+      if (source && (item.source_name || item.source_id) !== source) return false;
+      if (tab && item.tab !== tab) return false;
+      if (query && !itemSearchText(item, preference).includes(query)) return false;
+      return true;
+    })
+    .sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
+
+  return {
+    items: filtered.slice(offset, offset + limit).map((item) => libraryEntryForItem(item, preferences[item.id] || null)),
+    total: filtered.length,
+    offset,
+    limit,
+    sources,
+    tabs
+  };
+}
+
 export function itemStoreStats(store) {
   const items = listStoredItems(store);
   const sources = Object.values(store.sources || {});
@@ -158,6 +277,7 @@ export async function updateSourceHealth(source, patch, options = {}) {
   const storePath = options.storePath || ITEM_STORE_PATH;
   const store = options.store || (await readItemStore(storePath));
   store.sources[source.id] = {
+    ...(store.sources[source.id] || {}),
     id: source.id,
     name: source.name,
     tab: source.tab,
@@ -165,7 +285,6 @@ export async function updateSourceHealth(source, patch, options = {}) {
     url: source.url || source.feed || source.subreddit || '',
     priority: source.priority,
     poll_minutes: source.poll_minutes,
-    ...(store.sources[source.id] || {}),
     ...patch
   };
   await writeItemStore(store, storePath);

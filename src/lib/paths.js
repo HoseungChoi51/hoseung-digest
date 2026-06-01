@@ -11,6 +11,7 @@ export const DATA_DIR = path.join(ROOT_DIR, '.data');
 export const FETCH_CACHE_DIR = path.join(DATA_DIR, 'fetch-cache');
 export const POST_STORE_PATH = path.join(DATA_DIR, 'posts.json');
 export const ITEM_STORE_PATH = path.join(DATA_DIR, 'items.json');
+export const PREFERENCE_STORE_PATH = path.join(DATA_DIR, 'preferences.json');
 export const DIGEST_DIR = path.join(ROOT_DIR, 'content', 'digests');
 export const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 

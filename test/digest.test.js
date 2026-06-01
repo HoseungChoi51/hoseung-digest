@@ -38,7 +38,14 @@ test('dedupes items by canonical url and normalized title', () => {
   const items = dedupeItems([
     { id: 'a', source_id: 'one', canonical_url: 'https://example.com/a', title: 'Linux news!' },
     { id: 'b', source_id: 'two', canonical_url: 'https://example.com/a', title: 'duplicate url' },
-    { id: 'c', source_id: 'three', canonical_url: 'https://example.com/c', title: 'Linux news' }
+    { id: 'c', source_id: 'three', canonical_url: 'https://example.com/c', title: 'Linux news' },
+    {
+      id: 'd',
+      source_id: 'hn',
+      canonical_url: 'https://news.ycombinator.com/item?id=1',
+      original_url: 'https://example.com/a',
+      title: 'Different HN title'
+    }
   ]);
 
   assert.deepEqual(items.map((item) => item.id), ['a']);

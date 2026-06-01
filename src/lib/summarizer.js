@@ -23,6 +23,8 @@ function summaryInput(post) {
     comments_per_hour: Number(post.comments_per_hour || 0).toFixed(2),
     score_per_hour: Number(post.score_per_hour || 0).toFixed(2),
     watchlist_hits: post.watchlist_hits || [],
+    preference_boost: Number(post.preference_boost || 0).toFixed(2),
+    preference_reasons: post.preference_reasons || [],
     published_at: post.published_at,
     url: post.canonical_url,
     summary_snippet: post.raw_summary || ''
@@ -51,6 +53,7 @@ export async function analyzePosts(posts, config) {
           role: 'user',
           content:
             `Return JSON for these items. Mark skip=true for low-signal, duplicate, promotional, or irrelevant items. ` +
+            `Use preference_boost and preference_reasons as personal relevance hints, but do not let them override clearly low-quality or off-topic evidence. ` +
             `Classify each item into one of: hw, reddit, dev, ai_agent. ` +
             `Importance is 1-5. Summary should be 1-2 concise sentences that explain what happened and include the most specific useful entities from the title/snippet. ` +
             `If the snippet is empty, summarize only what can be known from the title/source/domain. ` +
