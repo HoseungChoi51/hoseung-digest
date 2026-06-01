@@ -76,6 +76,8 @@ npm run dev
 
 Open <http://127.0.0.1:3847>. The UI supports source filters, tab filters, rendered/raw Markdown, polling, digest generation, LLM summary refresh, save/hide feedback, preference labels, and a Library view for managing historical stored items.
 
+![Daily Tech Digest demo](docs/demo.gif)
+
 Use the `Library` tab to browse everything stored in `.data/items.json`, including saved items, hidden items, and positive preferences. `Load More` keeps appending older stored items without losing action buttons on appended entries.
 
 Preference labels are persistent and affect future ranking:
