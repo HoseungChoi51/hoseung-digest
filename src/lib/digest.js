@@ -11,6 +11,7 @@ import {
   rankItems
 } from './ranker.js';
 import { readPreferenceStore } from './preference-store.js';
+import { generatePreferenceGuidelines } from './preference-guidelines.js';
 import { summarizePosts } from './summarizer.js';
 import { writeDigestMarkdown } from './markdown.js';
 
@@ -67,6 +68,11 @@ export async function generateDigest(options = {}) {
   if (!config.sources.length) {
     throw new Error('No sources configured. Add source records to config/sources.yml.');
   }
+  const guidelineResult = await generatePreferenceGuidelines({
+    itemStore: store,
+    preferenceStore,
+    config
+  });
 
   const selectedItems = rankItems(
     dedupeItems(
@@ -102,6 +108,11 @@ export async function generateDigest(options = {}) {
     sourceAccount: 'rss-hn-reddit',
     configuredSourceCount: config.sources.length,
     pollResult,
+    preferenceGuidelines: {
+      generatedAt: guidelineResult.guidelines.generated_at,
+      rules: guidelineResult.guidelines.rule_counts,
+      preferences: guidelineResult.guidelines.labeled_item_count
+    },
     summaryStatus: summarized.status,
     posts: finalItems,
     groups

@@ -87,6 +87,22 @@ npm run digest:today -- --refresh-summaries
 
 `--refresh-summaries` forces the app to replace cached LLM summaries for the selected digest candidates. Without that flag, existing LLM summaries are reused to control API cost.
 
+## Preference Guidelines
+
+Generate a debuggable first-stage filtering guideline from `.data/items.json` and `.data/preferences.json`:
+
+```sh
+npm run guidelines
+```
+
+This writes `.data/preference-guidelines.md` for the LLM prompt and `.data/preference-guidelines.json` for structured rule evidence. With `OPENAI_API_KEY` configured, guideline updates are LLM-synthesized from preference evidence and prior rules so they can generalize as article forms and topics change. If the LLM is unavailable, the command writes a clearly marked deterministic fallback.
+
+Digest generation refreshes these artifacts before LLM curation, then cites guideline rule IDs in `llm_filter_rule_ids` and stores a short `llm_filter_reason` on each analyzed item.
+
+## Codex Skills
+
+This project includes a repo-local Codex skill at `.agents/skills/article-preference-updater`. Use it for preference-learning work: updating `.data/preference-guidelines.*`, refining first-stage LLM filtering behavior, debugging `llm_filter_rule_ids` / `llm_filter_reason`, and keeping the article selection workflow flexible as topics broaden.
+
 ## Web App
 
 Run the local server:
@@ -141,7 +157,7 @@ Near-term improvements are mostly about making the accumulated data easier to st
 
 - Add a source health and source settings view so broken feeds and noisy feeds are visible in the UI.
 - Add source-level feedback, such as prefer, mute, or lower priority for an entire source.
-- Generate preference summaries from saved and hidden history so the first-stage ranker and LLM prompt can adapt more explicitly.
+- Fold generated preference guidelines into ranking and source-level steering, not only LLM curation.
 - Add OPML import and export for RSS source management.
 - Move from JSON files to SQLite once `.data/items.json` becomes too large or slow.
 - Add a scheduled run mode for unattended daily polling and digest generation.

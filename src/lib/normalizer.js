@@ -79,6 +79,8 @@ export function createItem(source, raw, fetchedAt = new Date().toISOString()) {
     llm_reason: raw.llm_reason || '',
     llm_tags: raw.llm_tags || [],
     llm_entities: raw.llm_entities || [],
+    llm_filter_rule_ids: raw.llm_filter_rule_ids || [],
+    llm_filter_reason: raw.llm_filter_reason || '',
     cluster_id: raw.cluster_id || '',
     hidden: Boolean(raw.hidden),
     saved: Boolean(raw.saved),

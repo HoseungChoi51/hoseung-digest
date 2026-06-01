@@ -141,6 +141,8 @@ function entrySearchText(entry) {
     ...list(entry.whyItMayMatter),
     ...list(entry.entities),
     ...list(entry.tags),
+    ...list(entry.filterRuleIds),
+    entry.filterReason,
     entry.source,
     entry.tab,
     entry.domain,
@@ -208,6 +210,21 @@ function entryLinks(entry) {
   return links || '<span class="muted">No link stored.</span>';
 }
 
+function filterDebug(entry) {
+  const rules = list(entry.filterRuleIds);
+  const reason = String(entry.filterReason || '').trim();
+  if (!rules.length && !reason) return '';
+
+  const rulePills = rules.map((rule) => `<span class="pill">${escapeHtml(rule)}</span>`).join('');
+  return `
+    <div class="section-title">Filter Trace</div>
+    <div class="filter-trace">
+      ${rulePills ? `<div class="filter-rules">${rulePills}</div>` : ''}
+      ${reason ? `<p class="muted">${escapeHtml(reason)}</p>` : ''}
+    </div>
+  `;
+}
+
 function renderEntry(entry) {
   const summary = String(entry.summary || '').replace(/^_No summary generated\._$/, 'No summary generated.');
   const saveAction = entry.saved ? 'unsave' : 'save';
@@ -230,6 +247,7 @@ function renderEntry(entry) {
           ? `<div class="section-title">Why It Matters</div>${markdownListToHtml(entry.whyItMayMatter)}`
           : ''
       }
+      ${filterDebug(entry)}
       <div class="section-title">Links</div>
       <div class="links">${entryLinks(entry)}</div>
       <div class="section-title">Preference</div>

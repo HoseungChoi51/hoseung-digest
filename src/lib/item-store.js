@@ -125,6 +125,8 @@ export function libraryEntryForItem(item, preference = null) {
     whyItMayMatter: compact(item.llm_reason) ? [compact(item.llm_reason)] : [],
     entities: normalizeList(item.llm_entities),
     tags: normalizeList(item.llm_tags),
+    filterRuleIds: normalizeList(item.llm_filter_rule_ids),
+    filterReason: compact(item.llm_filter_reason),
     links: itemLinks(item),
     saved: Boolean(item.saved),
     hidden: Boolean(item.hidden),

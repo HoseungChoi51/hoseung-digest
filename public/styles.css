@@ -414,6 +414,17 @@ button.small {
   padding-left: 18px;
 }
 
+.filter-trace {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .links {
   display: flex;
   flex-wrap: wrap;

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Article Preference Updater"
+  short_description: "Evolve article filtering preferences"
+  default_prompt: "Use $article-preference-updater to refresh article filtering guidelines from the current preference data."
+
+policy:
+  allow_implicit_invocation: true
